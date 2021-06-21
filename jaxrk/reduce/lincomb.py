@@ -4,7 +4,7 @@ Created on Thu Jan 10 10:01:56 2019
 @author: Ingmar Schuster
 """
 
-
+import jax
 from typing import Callable, List, TypeVar, Tuple
 
 from jax import jit
@@ -35,12 +35,15 @@ class SparseReduce(Reduce):
     def __init__(self, idcs:List[Array], average:bool = True, max_idx = None):
         super().__init__()
         self.idcs = idcs
-        if max_idx is None:
+        if max_idx is not None:
+            self.max_idx = max_idx
+        else:
             max_list = []
             for i in idcs:
                 if i.size > 0:
                     max_list.append(np.max(i))
             self.max_idx = np.array(max_list).max()
+        self.average = average
         if average:
             self._reduce = np.mean
         else:
@@ -62,6 +65,20 @@ class SparseReduce(Reduce):
     def new_len(self, original_len:int):
         assert (self.max_idx + 1) <= original_len, self.__class__.__name__ + " expects a longer gram to operate on"
         return len(self.idcs)
+    
+    def to_linear(self) -> "LinearReduce":
+        n_out = np.sum(np.array([len(i) for i in self.idcs]))
+        n_in = self.max_idx + 1
+        offset = 0
+        lin_map = np.zeros((n_out, n_in))
+        for i in range(len(self.idcs)):
+            if self.idcs[i].shape[1] != 0:
+                idx1 = np.repeat(np.arange(self.idcs[i].shape[0]) + offset, self.idcs[i].shape[1])
+                lin_map = jax.ops.index_update(lin_map, (idx1, self.idcs[i].flatten()),  1./ self.idcs[i].shape[1] if self.average else 1.)
+            offset += self.idcs[i].shape[0]
+        return LinearReduce(lin_map)
+
+
     
     
     @classmethod
