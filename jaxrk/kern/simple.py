@@ -57,21 +57,38 @@ class DictKernel(Kernel):
             cholesky_lower: A square lower cholesky factor.
     """
 
-    def __init__(self, inspace_vals:Array, gram_values:Array = None, cholesky_lower:Array = None):
+    def __init__(self, inspace_vals:Array, gram_values:Array = None, cholesky_lower:Array = None, drop_neg_gram = True):
         super().__init__()
+
+        
+
         assert gram_values != cholesky_lower, "Exactly one of gram_values and cholesky_lower has to be defined."
-        self.inspace_vals = inspace_vals
+        
+
+        
+            
         if gram_values is None:
             assert cholesky_lower is not None, "Exactly one of gram_values and cholesky_lower has to be defined."
             assert len(cholesky_lower.shape) == 2
             assert cholesky_lower.shape[0] == cholesky_lower.shape[1]
             assert np.all(np.diag(cholesky_lower) > 0)
-            self.gram_values = cholesky_lower @ cholesky_lower.T
+            gram_values = cholesky_lower @ cholesky_lower.T
         else:
             assert cholesky_lower is None, "Exactly one of gram_values and cholesky_lower has to be defined."
             assert len(gram_values.shape) == 2
             assert gram_values.shape[0] == gram_values.shape[1]
-            self.gram_values = gram_values
+            
+        
+        nonneg = onp.array(np.diag(gram_values) > 0)
+        if not drop_neg_gram:
+            assert nonneg.sum() == nonneg.size, "gram_values is not a PSD matrix and drop_neg_gram is False. Provide a PSD matrix or set drop_neg_gram to True."
+        else:
+            inspace_vals = inspace_vals[nonneg]
+            gram_values = gram_values[nonneg, :][:, nonneg]
+        self.gram_values = gram_values
+        self.inspace_vals = inspace_vals
+
+        
 
     @classmethod
     def make_unconstr(cls, cholesky_lower:Array, diag_bij:Bijection = NonnegToLowerBd(0.1)) -> "DictKernel":
