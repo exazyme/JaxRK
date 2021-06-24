@@ -8,7 +8,7 @@ from ..core.typing import Bijection
 import jax.lax as lax
 
 
-class Softplus(Bijection):
+class SoftPlus(Bijection):
     def __call__(self, x):
         return np.log( 1 +np.exp(x))
 
@@ -88,7 +88,7 @@ def SoftBound(l:float = None, u:float = None) -> Bijection:
 
 @dataclass
 class CholeskyBijection(Bijection):
-    diag_bij:Bijection = NonnegToLowerBd(bij=Softplus)
+    diag_bij:Bijection = NonnegToLowerBd(bij=SquarePlus())
     lower:bool = True
 
     def _standardize(self, inp):
