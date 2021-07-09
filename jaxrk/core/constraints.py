@@ -91,21 +91,26 @@ class CholeskyBijection(Bijection):
     diag_bij:Bijection = NonnegToLowerBd(bij=SquarePlus())
     lower:bool = True
 
-    def _standardize(self, inp):
-        assert len(inp.shape) == 2
-        assert inp.shape[0] == inp.shape[1]
-        if self.lower:
-            return inp
-        else:
-            return inp.T
+    def is_standard(self, inp):
+        return len(inp.shape) == 2 and inp.shape[0] == inp.shape[1]
+
+    def is_symmetric(self, inp):        
+        return self.is_standard(inp) and np.allclose(inp, inp.T)        
+    
+    def is_param(self, inp):        
+        return self.is_standard(inp) and np.allclose(inp, np.tril(inp))
+    
+    def is_chol(self, inp):
+        return self.is_param(inp) and np.all(np.diagonal(inp) > 0)
 
     def param_to_chol(self, param):
-        param = self._standardize(param)
-
         return np.tril(param, -1) + np.diagflat(self.diag_bij(np.diagonal(param)))
 
+    def psd_to_param(self, psd_matr):
+        L = sp.linalg.eigh(psd_matr, lower = True)[1]
+        return self.chol_to_param(L)
+
     def chol_to_param(self, chol):
-        chol = self._standardize(chol)
         return np.tril(chol, -1) + np.diagflat(self.diag_bij.inv(np.diagonal(chol)))
 
     def __call__(self, x):

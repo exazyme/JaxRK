@@ -26,5 +26,12 @@ def test_simple_bijections(atol = 1e-3):
 
 def test_cholesky_bijection():
     cb = CholeskyBijection()
-    chol = cb.param_to_chol(np.arange(9).reshape(3, 3))
+    param = np.tril(np.arange(9).reshape(3, 3)).astype(float)
+    chol = cb.param_to_chol(param)    
+    assert cb.is_chol(chol)
+    assert cb.is_symmetric(chol@chol.T)
+    assert cb.is_param(cb.chol_to_param(chol))
     assert np.allclose(cb.param_to_chol(cb.chol_to_param(chol)), chol)
+    assert np.allclose(cb(param), chol@chol.T)
+    assert np.allclose(cb(cb.psd_to_param(chol@chol.T)), chol@chol.T)
+
