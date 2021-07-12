@@ -51,4 +51,4 @@ def test_SplitDimsKernel():
         k = SplitDimsKernel(intervals, kernels, op)
         assert(k(X, Y).shape == (len(X), len(Y)))
         assert(k(X).shape == (len(X), len(X)))
-        assert(k(X, diag = True).shape == (len(X),))
+        assert(k(X, diag = True).squeeze().shape == (len(X),))
