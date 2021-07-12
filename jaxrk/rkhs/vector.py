@@ -22,7 +22,7 @@ from ..utilities.gram import rkhs_gram_cdist, rkhs_gram_cdist_ignore_const, gram
 from ..core.typing import Array
 
 
-from .base import Vec, LinOp
+from .base import Vec
 
 #from ..utilities.frank_wolfe import frank_wolfe_pos_proj
 
