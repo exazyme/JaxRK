@@ -30,7 +30,7 @@ class SplitDimsKernel(Kernel):
             split_Y = [None] * len(self.kernels)
         else:
             split_Y = [Y[:, self.intervals[i]:self.intervals[i + 1]] for i in range(len(self.kernels))]
-        sub_grams = np.array([self.kernels[i].gram(split_X[i], split_Y[i], diag = diag) * self.weights[i]  for i in range(len(self.kernels))])
+        sub_grams = np.array([self.kernels[i](split_X[i], split_Y[i], diag = diag) * self.weights[i]  for i in range(len(self.kernels))])
         return self.operation(sub_grams)
                 
 
