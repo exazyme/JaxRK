@@ -6,8 +6,8 @@ import pytest
 from numpy.testing import assert_allclose
 from jax import random
 
-from jaxrk.rkhs import CovOp, Cdo, Cmo, FiniteMap, FiniteVec, inner, SpVec, CombVec
-from jaxrk.kern import (GaussianKernel, SplitDimsKernel, PeriodicKernel, GenGaussKernel)
+from jaxrk.rkhs import CovOp, Cdo, Cmo, FiniteOp, FiniteVec, inner, CombVec
+from jaxrk.kern import (SplitDimsKernel, PeriodicKernel, GenGaussKernel)
 from jaxrk.utilities.array_manipulation import all_combinations
 
 from mixtures_tools import location_mixture_logpdf, mixt
@@ -17,7 +17,7 @@ rng = random.PRNGKey(1)
 
 
 kernel_setups = [
-    GaussianKernel()
+    GenGaussKernel.make_gauss(1.)
 ]
 
 
@@ -25,7 +25,7 @@ def test_apply_matmul():
     x = np.linspace(-2.5, 15, 5)[:, np.newaxis].astype(np.float32)
     y = randn(x.size)[:, np.newaxis].astype(np.float32)
     
-    gk_x = GaussianKernel(0.1)
+    gk_x = GenGaussKernel.make_gauss(0.1)
 
     
     x_e1 = FiniteVec.construct_RKHS_Elem(gk_x, x)
@@ -34,7 +34,7 @@ def test_apply_matmul():
 
     oper_feat_vec  = FiniteVec(gk_x, x)
 
-    oper = FiniteMap(oper_feat_vec, oper_feat_vec, np.eye(len(x)))
+    oper = FiniteOp(oper_feat_vec, oper_feat_vec, np.eye(len(x)))
     res_e1 = oper @ x_e1
     res_e2 = (oper @ x_e2)
     res_v = (oper @ x_fv)
@@ -43,22 +43,22 @@ def test_apply_matmul():
     assert np.allclose(res_v.prefactors, np.hstack([res_e1.prefactors, res_e2.prefactors])), "Application of operator to all vectors in RKHS vector failed."
     assert np.allclose((oper @ oper).matr, oper.inp_feat.inner(oper.outp_feat)), "Application of operator to operator failed."
 
-def test_FiniteMap():
-    gk_x = GaussianKernel(0.1)
+def test_FiniteOp():
+    gk_x = GenGaussKernel.make_gauss(0.1)
     x = np.linspace(-2.5, 15, 20)[:, np.newaxis].astype(np.float32)
     #x = np.random.randn(20, 1).astype(np.float)
     ref_fvec = FiniteVec(gk_x, x, np.ones(len(x)))
     ref_elem = FiniteVec.construct_RKHS_Elem(gk_x, x, np.ones(len(x)))
 
-    C1 = FiniteMap(ref_fvec, ref_fvec, np.linalg.inv(inner(ref_fvec)))
+    C1 = FiniteOp(ref_fvec, ref_fvec, np.linalg.inv(inner(ref_fvec)))
     assert(np.allclose((C1 @ ref_elem).prefactors, 1.))
 
-    C2 = FiniteMap(ref_fvec, ref_fvec, C1.matr@C1.matr)
+    C2 = FiniteOp(ref_fvec, ref_fvec, C1.matr@C1.matr)
     assert(np.allclose((C2 @ ref_elem).prefactors, np.sum(C1.matr, 0)))
 
     n_rvs = 50
     rv_fvec = FiniteVec(gk_x, random.normal(rng, (n_rvs, 1)) * 5, np.ones(n_rvs))
-    C3 = FiniteMap(rv_fvec, rv_fvec, np.eye(n_rvs))
+    C3 = FiniteOp(rv_fvec, rv_fvec, np.eye(n_rvs))
     assert np.allclose((C3 @ C1).matr, gk_x(rv_fvec.insp_pts, ref_fvec.insp_pts) @ C1.matr, 0.001, 0.001)
 
 
@@ -72,7 +72,7 @@ def test_CovOp(plot = False, center = False):
     import pylab as pl
     if samps_unif is None:
         samps_unif = nsamps
-    gk_x = GaussianKernel(0.2)
+    gk_x = GenGaussKernel.make_gauss(0.2)
 
     targ = mixt(D, [multivariate_normal(3*np.ones(D), np.eye(D)*0.7**2), multivariate_normal(7*np.ones(D), np.eye(D)*1.5**2)], [0.5, 0.5])
     out_samps = targ.rvs(nsamps).reshape([nsamps, 1]).astype(float)
@@ -189,62 +189,3 @@ def test_Cdmo(plot = False):
 
 
 
-def test_Cdo_timeseries(plot = False):
-    raise NotImplementedError()
-    if plot:
-        import pylab as pl
-    x = np.linspace(0, 40, 400).reshape((-1, 1))
-    y = np.sin(x) + randn(len(x)).reshape((-1, 1)) * 0.2
-    proc_data = np.hstack([x,y])
-    if plot:
-        pl.plot(x.flatten(), y.flatten())
-
-    invec = FiniteVec(GaussianKernel(0.5), np.array([y.squeeze()[i:i+10] for i in range(190)])) 
-    outvec = FiniteVec(GaussianKernel(0.5), y[10:200])
-    refervec = FiniteVec(outvec.k, np.linspace(y[:-201].min() - 2, y[:-201].max() + 2, 5000)[:, None])
-    cd = Cdo(invec, outvec, refervec, 0.1)
-    cd = Cmo(invec, outvec, 0.1)
-    sol2 = np.array([(cd @ FiniteVec(invec.k, y[end-10:end].T)).normalized().get_mean_var() for end in range(200,400) ])
-    if plot:
-        pl.plot(x[200:].flatten(), sol2.T[0].flatten())
-    invec = CombVec(FiniteVec(PeriodicKernel(np.pi, 5), x[:200,:]),
-                     SpVec(SplitDimsKernel([0,1,2],[PeriodicKernel(np.pi, 5), GaussianKernel(0.1)]),
-                           proc_data[:200,:], np.array([200]), use_subtrajectories=True), np.multiply)
-    outvec = FiniteVec(GaussianKernel(0.5), y[1:-199])
-    #cd = Cdo(invec, outvec, refervec, 0.1)
-    cd = Cmo(invec, outvec, 0.1)
-    #sol = (cd.inp_feat.inner(SpVec(invec.k, proc_data[:230], np.array([230]), use_subtrajectories=True)))
-    #sol = [(cd.inp_feat.inner(SiEdSpVec(invec.k_obs, y[:end], np.array([end]), invec.k_idx, use_subtrajectories=False ))) for end in range(200,400) ]
-    #pl.plot(np.array([sol[i][-1] for i in range(len(sol))]))
-
-    #sol = np.array([multiply (cd, SpVec(invec.k, proc_data[:end], np.array([end]), use_subtrajectories=False)).normalized().get_mean_var() for end in range(200,400) ])
-    sol = (cd @ CombVec(FiniteVec(invec.v1.k, x), SpVec(invec.v2.k, proc_data[:400], np.array([400]), use_subtrajectories=True), np.multiply)).normalized().get_mean_var()
-
-
-    print(sol)
-    return sol2.T[0], sol[0][200:], y[200:]
-    (true_x1, est_x1, este_x1, true_x2, est_x2, este_x2) = [lambda samps: true_dens(np.hstack([np.repeat(x1, len(samps), 0), samps])),
-                                                            lambda samps: np.squeeze(inner((cd@ FiniteVec.construct_RKHS_Elem(invec.k, x1)).normalized().pos_proj().normalized(), FiniteVec(refervec.k, samps, prefactors=np.ones(len(samps))))),
-                                                            lambda samps: np.squeeze(inner((cm@ FiniteVec.construct_RKHS_Elem(invec.k, x1)).normalized().pos_proj().normalized(), FiniteVec(refervec.k, samps, prefactors=np.ones(len(samps))))),
-                                                            lambda samps: true_dens(np.hstack([np.repeat(x2, len(samps), 0), samps])),
-                                                            lambda samps: np.squeeze(inner((cd@ FiniteVec.construct_RKHS_Elem(invec.k, x2)).normalized().pos_proj().normalized(), FiniteVec(refervec.k, samps, prefactors=np.ones(len(samps))))),
-                                                            lambda samps: np.squeeze(inner((cm@ FiniteVec.construct_RKHS_Elem(invec.k, x2)).normalized().pos_proj().normalized(), FiniteVec(refervec.k, samps, prefactors=np.ones(len(samps)))))]
-
-    t = np.array((true_x1(refervec.insp_pts), true_x2(refervec.insp_pts)))
-    e = np.array((est_x1(refervec.insp_pts), est_x2(refervec.insp_pts)))
-    if plot:
-        import pylab as pl
-
-        (fig, ax) = pl.subplots(1, 3, False, False)
-        ax[0].plot(refervec.insp_pts, t[0])
-        ax[0].plot(refervec.insp_pts, e[0], "--", label = "dens")
-        ax[0].plot(refervec.insp_pts, este_x1(refervec.insp_pts), "-.", label = "emb")
-        
-        ax[1].plot(refervec.insp_pts, t[1])
-        ax[1].plot(refervec.insp_pts, e[1], "--", label = "dens")
-        ax[1].plot(refervec.insp_pts, este_x2(refervec.insp_pts),"-.", label = "emb")
-
-        ax[2].scatter(*rvs.T)
-        fig.legend()
-        fig.show()
-    assert(np.allclose(e,t, atol=0.5))
