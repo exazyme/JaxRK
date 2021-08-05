@@ -1,4 +1,8 @@
 import copy
+from jaxrk.reduce.base import TileView
+from jaxrk.rkhs.cov import Cov_regul
+from jaxrk.rkhs.conditional_operator import RidgeCmo
+from operator import inv
 
 import jax.numpy as np
 from numpy.random import randn
@@ -6,7 +10,7 @@ import pytest
 from numpy.testing import assert_allclose
 from jax import random
 
-from jaxrk.rkhs import CovOp, Cdo, Cmo, FiniteOp, FiniteVec, inner, CombVec
+from jaxrk.rkhs import Cov_regul, CovOp, Cdo, Cmo, FiniteOp, FiniteVec, inner, CombVec, Loo_RidgeCmo 
 from jaxrk.kern import (SplitDimsKernel, PeriodicKernel, GenGaussKernel)
 from jaxrk.utilities.array_manipulation import all_combinations
 
@@ -113,27 +117,26 @@ def test_CovOp(plot = False, center = False):
     assert (np.std(supp) < 0.15), "Estimated support has high variance, in data points, while it should be almost constant."
 
 
+def generate_donut(nmeans = 10, nsamps_per_mean = 50):
+    from scipy.stats import multivariate_normal
+    from numpy import exp
+
+    def pol2cart(theta, rho):
+        x = (rho * np.cos(theta)).reshape(-1,1)
+        y = (rho * np.sin(theta)).reshape(-1,1)
+        return np.concatenate([x, y], axis = 1)
+
+    comp_distribution = multivariate_normal(np.zeros(2), np.eye(2)/100)
+    means = pol2cart(np.linspace(0,2*3.141, nmeans + 1)[:-1], 1)
+
+    rvs = comp_distribution.rvs(nmeans * nsamps_per_mean) + np.repeat(means, nsamps_per_mean, 0)
+    true_dens = lambda samps: exp(location_mixture_logpdf(samps, means, np.ones(nmeans) / nmeans, comp_distribution))
+    return rvs, means, true_dens
 
 
 def test_Cdmo(plot = False):
     cent_vals = [True, False]
     site_vals = [0., 1.]
-
-    def generate_donut(nmeans = 10, nsamps_per_mean = 50):
-        from scipy.stats import multivariate_normal
-        from numpy import exp
-
-        def pol2cart(theta, rho):
-            x = (rho * np.cos(theta)).reshape(-1,1)
-            y = (rho * np.sin(theta)).reshape(-1,1)
-            return np.concatenate([x, y], axis = 1)
-
-        comp_distribution = multivariate_normal(np.zeros(2), np.eye(2)/100)
-        means = pol2cart(np.linspace(0,2*3.141, nmeans + 1)[:-1], 1)
-
-        rvs = comp_distribution.rvs(nmeans * nsamps_per_mean) + np.repeat(means, nsamps_per_mean, 0)
-        true_dens = lambda samps: exp(location_mixture_logpdf(samps, means, np.ones(nmeans) / nmeans, comp_distribution))
-        return rvs, means, true_dens
 
     x_vals = [np.zeros((1,1)) + i for i in site_vals]
 
@@ -186,6 +189,4 @@ def test_Cdmo(plot = False):
 
     for cent in cent_vals:
         assert(np.allclose(ests["dens"][cent],t, atol=0.5))
-
-
 

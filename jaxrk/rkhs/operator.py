@@ -17,8 +17,6 @@ from .base import LinOp, RkhsObject, Vec, InpVecT, OutVecT, RhInpVectT, CombT
 class FiniteOp(LinOp[InpVecT, OutVecT]):
     """Finite rank LinOp in RKHS"""
     
-    
-
     def __init__(self, inp_feat:InpVecT, outp_feat:OutVecT, matr:Array = None, normalize:bool = False):
         super().__init__()
         if matr is not None:
@@ -43,35 +41,18 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
                 right_inp = FiniteVec(self.inp_feat.k, np.atleast_2d(right_inp))
             # right_inp is a vector
             # Op @ vec 
-            lin_LinOp = inner(self.inp_feat, right_inp)
+            right_gram = inner(self.inp_feat, right_inp)
             
             if self.matr is not None:
-                lin_LinOp = self.matr @ lin_LinOp
+                right_gram = self.matr @ right_gram
             if self._normalize:
-                lin_LinOp = lin_LinOp / lin_LinOp.sum(1, keepdims = True)
-            lr = LinearReduce(lin_LinOp.T)
+                right_gram = right_gram / right_gram.sum(1, keepdims = True)
+            lr = LinearReduce(right_gram.T)
             if len(right_inp) != 1:
                 return self.outp_feat.extend_reduce([lr])
             else:
-                return self.outp_feat.extend_reduce([lr, Sum()])
-    
-    def inner(self, Y:"FiniteOp[InpVecT, OutVecT]"=None, full=True):
-        assert NotImplementedError("This implementation as to be tested")
-        if Y is None:
-            Y = self
-        G_i = self.inp_feat.inner(Y.inp_feat)
-        G_o = self.outp_feat.inner(Y.outp_feat)
+                return self.outp_feat.extend_reduce([lr, Sum()])    
 
-        # check the following expression again
-        if Y.matr.size < self.matr.size:
-            return np.sum((G_o.T @ self.matr @ G_i) * Y.matr)
-        else:
-            return np.sum((G_o @ Y.matr @ G_i.T) * self.matr)
-
-        # is the kronecker product taken the right way around or do self and Y have to switch plaches?
-        #return self.reduce_gram(Y.reduce_gram(G_i.T.reshape(1, -1) @ np.kron(self.matr, Y.matr) @ G_o.reshape(1, -1), 1), 0)
-    
-    
     def reduce_gram(self, gram, axis = 0):
         return gram
     
@@ -85,5 +66,23 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
     def apply(self, inp:CombT) -> RkhsObject:
         return self @ inp
 
+    def inner(self, Y:"FiniteOp[InpVecT, OutVecT]"=None, full=True):
+        assert NotImplementedError("This implementation has to be tested")
+        if Y is None:
+            Y = self
+        G_i = self.inp_feat.inner(Y.inp_feat)
+        G_o = self.outp_feat.inner(Y.outp_feat)
 
+        # check the following expression again
+        if Y.matr.size < self.matr.size:
+            return np.sum((G_o.T @ self.matr @ G_i) * Y.matr)
+        else:
+            return np.sum((G_o @ Y.matr @ G_i.T) * self.matr)
+
+        # is the kronecker product taken the right way around or do self and Y have to switch plaches?
+        #return self.reduce_gram(Y.reduce_gram(G_i.T.reshape(1, -1) @ np.kron(self.matr, Y.matr) @ G_o.reshape(1, -1), 1), 0)
+
+""" 
+class FiniteOpVec(object):
+    def __init__(self, inp_feat:InpVecT, outp_feat:OutVecT, matr:Array = None) """
 

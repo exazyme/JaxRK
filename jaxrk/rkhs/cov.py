@@ -29,8 +29,8 @@ def CovOp_from_Samples(kern, inspace_points, prefactors = None) -> FiniteOp[InpV
 def Cov_regul(nsamps:int, nrefsamps:int = None, a:float = 0.49999999999999, b:float = 0.49999999999999, c:float = 0.1):
         """Compute the regularizer based on the formula from the Kernel Conditional Density operators paper (Schuster et al., 2020, Corollary 3.4).
         
-        smaller c => larger bias, tighter stochastic error bounds
-        bigger  c =>  small bias, looser stochastic error bounds
+        smaller c => larger bias, tight stochastic error bounds
+        bigger  c => smaller bias, loose stochastic error bounds
 
         Args:
             nsamps (int): Number of samples used for computing the RKHS embedding.
