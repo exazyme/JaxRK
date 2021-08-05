@@ -10,6 +10,7 @@ from scipy.optimize import minimize
 
 from ..rkhs.vector import FiniteVec, inner
 from ..core.typing import AnyOrInitFn, Array
+from ..utilities.cv import invert_loo, loo_I
 
 from .base import LinOp, RkhsObject, Vec, InpVecT, OutVecT, RhInpVectT, CombT
 from .cov import *
@@ -29,11 +30,6 @@ def RidgeCmo(inp_feat:InpVecT, outp_feat:OutVecT, regul:float = None) -> FiniteO
             assert regul.squeeze().size == 1 or regul.squeeze().shape[0] == len(inp_feat)
         matr = np.linalg.inv(inp_feat.inner() + regul * np.eye(len(inp_feat)))
         return  FiniteOp(inp_feat, outp_feat, matr)
-
-def Loo_CMO(invec, outvec):
-    m = invert_loo(invec.inner())
-    rlooI, clooI = loo_I(len(invec))
-    return FiniteOp(invec, outvec, clooI, rlooI)
 
 def Cdo(inp_feat:InpVecT, outp_feat:OutVecT, ref_feat:OutVecT, regul = None) -> FiniteOp[InpVecT, OutVecT]:
         if regul is not None:
