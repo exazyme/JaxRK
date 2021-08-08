@@ -3,52 +3,11 @@ from jax import vmap, jit, pmap
 from jax import random
 from functools import partial
 from jax.ops import index, index_update
-from ..core.typing import PRNGKeyT
+from ..core.typing import PRNGKeyT, Array
 
 
 
 vinvert = jit(vmap(np.linalg.inv))
-
-def delete_symmetric(gram:np.ndarray, i):
-    """Delete i'th row and column from a square matrix"""
-    return np.delete(np.delete(gram, i, 0), i, 1)
-
-def delete_rc(m:np.ndarray, i:int):
-    """Returns tuple of matrices with row, col of index i deleted
-
-    Args:
-        m (np.ndarray): Input array, expected to have at least i+1 rows and cols
-        i (int): The row & col to delete
-    """
-    return np.delete(m, i, 0), np.delete(m, i, 1)
-
-
-def submatrices_loo(gram:np.ndarray):
-    """Compute square submatrices from a square gram matrix for leave-one-out-scheme"""
-    d = partial(delete_symmetric, gram)
-    return np.array([d(i) for i in range(gram.shape[0])])
-
-def zerofill_loo(inverted_subgrams:np.ndarray):
-    """Fill row & column of inverted subgrams for leave-one-out scheme
-    such that original size is retained
-
-    Args:
-        inverted_submatrices (np.ndarray): [description]
-    """
-    a = np.zeros([inverted_subgrams.shape[-1] + 1]*3)
-    for i, gram in enumerate(inverted_subgrams):
-        a = a.at[index[i, :i, :i]].set(gram[:i, :i])
-        a = a.at[index[i, i + 1:, i + 1:]].set(gram[i:, i:])
-        a = a.at[index[i, i + 1:, :i]].set(gram[i:, :i])
-        a = a.at[index[i, :i, i + 1:]].set(gram[:i, i:])
-    return a
-
-def invert_loo(gram:np.ndarray, zerofill = True):
-    """Invert square gram-submatrices for leave-one-out-scheme"""
-    rval = vinvert(submatrices_loo(gram))
-    if not zerofill:
-        return rval
-    return zerofill_loo(rval)
 
 select_rows = jit(vmap(lambda sel, inp: sel@inp, (0, None)))
 sym_matmul_fixed_inp = jit(vmap(lambda sel, inp: sel@inp@sel.T, (0, None)))
@@ -68,7 +27,17 @@ def cv_train_val(n_orig:int, n_train:int, n_splits:int, rng:PRNGKeyT):
     return p[:, :n_train], p[:, n_train:]
 
 
-def idcs_to_selection_matr(n_orig:int, idcs:np.ndarray, idcs_sorted = False):
+def idcs_to_selection_matr(n_orig:int, idcs:Array, idcs_sorted:bool = False) -> Array:
+    """Convert submatrix indices to linear maps that perform the actual selection.
+
+    Args:
+        n_orig (int): Size of original matrix from which we select rows/columns
+        idcs (Array): row/colum indices. Each row is converted into its own linear map.
+        idcs_sorted (bool, optional): Whether indices are sorted in ascending order. Defaults to False.
+
+    Returns:
+        Array: Linear maps corresponding to the indices in each row.
+    """
     if not idcs_sorted:
         idcs = np.sort(idcs, 1)
     rval = np.zeros((*idcs.shape, n_orig))
@@ -77,18 +46,19 @@ def idcs_to_selection_matr(n_orig:int, idcs:np.ndarray, idcs_sorted = False):
             rval = rval.at[index[split, r, c]].set(1.)
     return rval
 
-def invert_submatr(gram:np.ndarray, train_idcs:np.ndarray, zerofill = True):
+def invert_submatr(gram:Array, train_idcs:Array, zerofill:bool = True) -> Array:
+    """Invert square gram-submatrices for cross validation scheme
+
+    Args:
+        gram (Array): Full gram matrix
+        train_idcs (Array): row/colum indices for selecting submatrices from gram. One row contains indices for one submatrix.
+        zerofill (bool, optional): Wether to fill non-selected rows/colums with zero after inversion, so submatrix-inverses match gram in shape. Defaults to True.
+
+    Returns:
+        Array: The matrices computed by first computing submatrices, inverting, and optionally filling non-selected rows/colums with zero.
+    """
     train_sel_matr = idcs_to_selection_matr(gram.shape[0], train_idcs)
     rval = vinvert(sym_matmul_fixed_inp(train_sel_matr, gram))
     if zerofill:
         rval = sym_matmul_variable_inp(np.swapaxes(train_sel_matr, -1, -2), rval)
     return rval
-
-
-def loo_I(n:int, stacked = False):
-    I = np.eye(n)
-    loo_I = np.array([np.delete(I, x, 0) for x in range(I.shape[0])])
-    if stacked:
-        return np.vstack(loo_I)
-    else:
-        return loo_I

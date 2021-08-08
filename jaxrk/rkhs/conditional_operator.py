@@ -10,7 +10,6 @@ from scipy.optimize import minimize
 
 from ..rkhs.vector import FiniteVec, inner
 from ..core.typing import AnyOrInitFn, Array
-from ..utilities.cv import invert_loo, loo_I
 
 from .base import LinOp, RkhsObject, Vec, InpVecT, OutVecT, RhInpVectT, CombT
 from .cov import *
