@@ -104,42 +104,6 @@ class DictKernel(Kernel):
         chol_bij = CholeskyBijection(diag_bij = diag_bij)
         return cls(gram_values=chol_bij(cholesky_lower))
     
-    @classmethod
-    def read_file(cls, p:Path, dict_file:Path):
-        with open(p) as matrix_file:
-            lines = matrix_file.readlines()
-
-        with open(dict_file) as df:
-            d = df.read()
-            d = onp.array(d.strip().split())
-        
-        header = None
-        col_header = []
-        m = []
-        for idx, row in enumerate(lines):
-            row = row.strip()
-            if row[0] == '#' or len(row) == 0:
-                continue
-            entries = row.split()
-            if header is None:
-                header = entries
-                continue
-            else:
-                col_header.append(entries.pop(0))
-                m.append(list(map(float, entries)))
-        header, col_header = onp.array(header), onp.array(col_header)
-        m = np.array(m)
-        assert np.all(header == col_header)
-        assert len(header) == m.shape[0] and m.shape[0] == m.shape[1]
-
-        if header[-1] == '*':
-            header = header[:-1]
-            m = m[:-1, :-1]
-        
-        reorder = np.argmax(header[:,None] == d[None,:], 0)
-       # print(header, m, "\n", d, m[reorder,:][:,reorder])
-
-        return cls(d, gram_values = m[reorder,:][:,reorder])
 
     def __call__(self, idx_X, idx_Y=None, diag = False):
         assert (len(np.shape(idx_X))==2) and (idx_Y is None or len(np.shape(idx_Y))==2)
