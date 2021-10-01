@@ -18,11 +18,28 @@ from jax.lax import scan, map
 from jax import vmap
 from jax.ops import index_update
 from ..core.typing import  Array
-
-
+from ..utilities.cv import vmatmul_fixed_inp
 from .base import Reduce
 
-ListOfArray_or_Array_T = TypeVar("CombT", List[Array], Array)
+
+
+def compute_slices(l:List[int]):
+    cs = np.cumsum(np.array(l))
+    prepend_0 = list(cs[:-1])
+    prepend_0.insert(0, 0)
+    prepend_0 = np.array(prepend_0)
+    return np.vstack([prepend_0, cs]).T
+    
+
+def vmult_inp_subsclices(linmap, gram, gram_slice):
+    rval = []
+    for i, m in enumerate(linmap):
+        rval.append(vmatmul_fixed_inp(m, gram[gram_slice[i][0]:gram_slice[i][1], :]))
+    return np.array(rval)
+
+
+
+#ListOfArray_or_Array_T = TypeVar("CombT", List[Array], Array)
 
 class SparseReduce(Reduce):
     """SparseReduce constructs a Gram matrix by summing/averaging over rows of its input
@@ -100,13 +117,34 @@ class SparseReduce(Reduce):
         #assert False
         return un_sorted, cts_sorted, SparseReduce(el, mean)
 
+class VLinearReduce(Reduce):
+    def __init__(self, linmaps:List[Array]):
+        #TODO: Docstring
+        super().__init__()
+        self.linmaps = linmaps
+        self.res_len = 0
+        self.orig_len = 0
+        for m in linmaps:
+            self.res_len += m.shape[0] * m.shape[1]
+            self.orig_len += m.shape[2]
+        self.gram_slice = compute_slices([m.shape[2] for m in linmaps])
+    
+    def reduce_first_ax(self, inp:Array):
+        rval = np.vstack(vmult_inp_subsclices(self.linmaps, inp, self.gram_slice))
+        return np.vstack(rval)
+
+    def new_len(self, original_len: int) -> int:
+        return self.res_len
+
+
+
 class LinearReduce(Reduce):
     
     def __init__(self, linear_map:Array):
         super().__init__()
         self.linear_map = linear_map
 
-    def reduce_first_ax(self, inp:np.array):
+    def reduce_first_ax(self, inp:Array):
         assert len(inp.shape) == 2
         assert self.linear_map.shape[1] == inp.shape[0]
         return self.linear_map @ inp

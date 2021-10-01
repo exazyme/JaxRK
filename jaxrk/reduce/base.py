@@ -82,8 +82,6 @@ class NoReduce(Reduce):
         return original_len
 
 class Prefactors(Reduce):
-    
-
     def __init__(self, prefactors:Array):
         super().__init__()
         assert len(prefactors.shape) == 1
@@ -122,7 +120,7 @@ class TileView(Reduce):
         self.result_len = result_len
 
     def reduce_first_ax(self, inp:np.array) -> np.array:
-        assert self.result_len % inp.shape[0] == 0, "Input can't be broadcasted to target length %d" % self._len
+        assert self.result_len % inp.shape[0] == 0, "Input can't be broadcasted to target length %d" % self.result_len
         return tile_view(inp, self.result_len//inp.shape[0])
     
     def new_len(self, original_len:int) -> int:
