@@ -77,9 +77,6 @@ class SparseReduce(Reduce):
                 lin_map = jax.ops.index_update(lin_map, (idx1, self.idcs[i].flatten()),  1./ self.idcs[i].shape[1] if self.average else 1.)
             offset += self.idcs[i].shape[0]
         return LinearReduce(lin_map)
-
-
-    
     
     @classmethod
     def sum_from_unique(cls, input:np.array, mean:bool = True) -> Tuple[np.array, np.array, "SparseReduce"]:        
@@ -102,48 +99,6 @@ class SparseReduce(Reduce):
 
         #assert False
         return un_sorted, cts_sorted, SparseReduce(el, mean)
-
-class BlockReduce(Reduce):
-    """BlockReduce constructs a larger Gram matrix by copying indices of a smaller one
-
-        Args:
-            block_boundaries (np.array): Boundaries of blocks
-            average (bool): wether or not to average
-    """
-
-    
-    def __init__(self, block_boundaries:Array, average:bool = True):
-        super().__init__()
-        self.block_boundaries = block_boundaries
-        if average:
-            self._reduce = np.mean
-        else:
-            self._reduce = np.sum
-
-    def reduce_first_ax(self, inp:np.array) -> np.array:
-        assert (self.block_boundaries[-1]) <= len(inp), self.__class__.__name__ + " expects a longer gram to operate on"
-        assert len(inp.shape) == 2
-        rval = []
-
-        for i in range(len(self.block_boundaries) - 1):
-            start = self.block_boundaries[i]
-            end = self.block_boundaries[i+1]
-            reduced = self._reduce(inp[start:end,:], 0)
-            rval.append(reduced)
-        return np.concatenate(rval, 0)
-    
-    def new_len(self, original_len:int):
-        return self.block_boundaries[-1]
-    
-    
-    @classmethod
-    def sum_from_block(cls, input:np.array, mean:bool = True) -> "BlockReduce":
-        change = list(np.argwhere(input[:-1] - input[1:] != 0).flatten() + 1)
-        change.insert(0, 0) 
-        change.append(len(input))
-        change = np.array(change)
-
-        return BlockReduce(change, mean)
 
 class LinearReduce(Reduce):
     
