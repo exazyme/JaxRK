@@ -8,6 +8,7 @@ from ..core.typing import PRNGKeyT, Array
 
 
 vinvert = jit(vmap(np.linalg.inv))
+vcholesky = jit(vmap(partial(sp.linalg.cholesky, lower=True)))
 
 select_rows = jit(vmap(lambda sel, inp: sel@inp, (0, None)))
 sym_matmul_fixed_inp = jit(vmap(lambda sel, inp: sel@inp@sel.T, (0, None)))
@@ -59,6 +60,23 @@ def invert_submatr(gram:Array, train_idcs:Array, zerofill:bool = True) -> Array:
     """
     train_sel_matr = idcs_to_selection_matr(gram.shape[0], train_idcs)
     rval = vinvert(sym_matmul_fixed_inp(train_sel_matr, gram))
+    if zerofill:
+        rval = sym_matmul_variable_inp(np.swapaxes(train_sel_matr, -1, -2), rval)
+    return rval
+
+def cholesky_submatr(gram:Array, train_idcs:Array, zerofill:bool = True) -> Array:
+    """Cholesky decompose square gram-submatrices for cross validation scheme
+
+    Args:
+        gram (Array): Full gram matrix
+        train_idcs (Array): row/colum indices for selecting submatrices from gram. One row contains indices for one submatrix.
+        zerofill (bool, optional): Wether to fill non-selected rows/colums with zero after inversion, so submatrix-inverses match gram in shape. Defaults to True.
+
+    Returns:
+        Array: The matrices computed by first computing submatrices, computing the lower Cholesky factor, and optionally filling non-selected rows/colums with zero.
+    """
+    train_sel_matr = idcs_to_selection_matr(gram.shape[0], train_idcs)
+    rval = vcholesky(sym_matmul_fixed_inp(train_sel_matr, gram))
     if zerofill:
         rval = sym_matmul_variable_inp(np.swapaxes(train_sel_matr, -1, -2), rval)
     return rval
