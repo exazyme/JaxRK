@@ -79,7 +79,10 @@ class GP(object):
             self.ystd = np.ones(1)
         else:
             self.ymean = np.mean(y, 0, keepdims=True)
-            self.ystd = np.std(y, 0, keepdims=True)
+            if len(x) == 1:
+                self.ystd = np.ones(1)
+            else:
+                self.ystd = np.std(y, 0, keepdims=True)
             self.y = (self.y - self.ymean) / self.ystd
 
         train_cov = self.x.inner() + np.eye(len(self.x)) * self.noise 
