@@ -5,13 +5,10 @@ from functools import partial
 from ..core.constraints import NonnegToLowerBd, Bijection, SoftBound, SquashingToBounded
 from ..core.init_fn import ConstFn
 from dataclasses import dataclass
-from flax.linen.module import compact
-import flax.linen as ln
 
 import jax.numpy as np
 import jax.scipy as sp
 import jax.scipy.stats as stats
-import flax.linen as ln
 from jax.random import PRNGKey
 
 from jax.numpy import exp, log, sqrt

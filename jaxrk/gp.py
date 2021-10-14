@@ -1,7 +1,7 @@
 from .rkhs import FiniteVec
 from .core.typing import Array
 from .utilities import cv
-import jax.numpy as np, flax.linen as ln, jax.scipy as sp
+import jax.numpy as np, jax.scipy as sp
 from typing import Any
 from jaxrk.rkhs import Cov_regul
 import jax

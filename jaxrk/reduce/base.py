@@ -14,7 +14,6 @@ import jax.scipy.stats as stats
 from jax.numpy import exp, log, sqrt
 from jax.scipy.special import logsumexp
 from ..utilities.views import tile_view
-import flax.linen as ln
 from ..core.typing import PRNGKeyT, Shape, Dtype, Array, ConstOrInitFn
 from ..core.init_fn import ConstFn
 

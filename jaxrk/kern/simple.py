@@ -13,7 +13,6 @@ from scipy.stats import multivariate_normal
 from ..kern.base import DensityKernel, Kernel
 from ..kern.util import ScaledPairwiseDistance
 from ..core.init_fn import ConstFn, ConstIsotropicFn
-import flax.linen as ln
 from ..core.typing import ConstOrInitFn
 from ..core.init_fn import ConstFn, ConstIsotropicFn
 from ..core.constraints import NonnegToLowerBd, Bijection, CholeskyBijection

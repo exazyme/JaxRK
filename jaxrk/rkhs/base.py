@@ -1,6 +1,5 @@
 from abc import abstractmethod, ABC
 from ..core.typing import Array
-import flax.linen as ln
 from typing import NewType, TypeVar, Generic, Sized, Union
 
 

@@ -12,7 +12,6 @@ import numpy as onp
 import jax.numpy as np
 import jax.scipy as sp
 import jax.scipy.stats as stats
-import flax.linen as ln
 from jax.numpy import exp, log, sqrt
 from jax.scipy.special import logsumexp
 from scipy.optimize import minimize

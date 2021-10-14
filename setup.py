@@ -7,8 +7,8 @@ setup(
   license='MIT',
   description = 'JaxRK is a library for working with (vectors of) RKHS elements and RKHS operators using JAX for automatic differentiation.',   # Give a short description about your library
   author = 'Ingmar Schuster',
-  author_email = 'ingmar.schuster@zalando.de',
-  url = 'https://github.com/zalandoresearch/jaxrk',
+  author_email = 'ingmar@exazyme.com',
+  url = 'https://github.com/ingmarschuster/jaxrk',
   download_url = 'https://github.com/zalandoresearch/jaxrk/v_01.tar.gz',
   keywords = ['Jax', 'RKHS', 'kernel'], 
   install_requires=['jax', 'numpy', 'scipy', 'matplotlib'],
