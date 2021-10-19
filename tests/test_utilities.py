@@ -1,10 +1,11 @@
 from jaxrk.utilities.eucldist import eucldist
 from jaxrk.utilities.distances import dist
+from jaxrk.utilities.linalg import inv_blockmatr
 from scipy.spatial.distance import cdist
 from numpy.random import randn
 from jax.numpy import allclose
 import jax.numpy as np
-from jaxrk.kern import LinearKernel
+from jaxrk.kern import LinearKernel, GenGaussKernel
 from jaxrk.rkhs import FiniteVec
 import sys
 
@@ -42,4 +43,14 @@ def test_dist():
             d = dist(*dist_args, power=pow)
             print("*", pow, np.abs(ground_truth - d).max())
             assert(allclose(ground_truth, d, atol = 1e-05))
+
+def test_inv_blockmatr():
+    G = GenGaussKernel.make_gauss(1.)(np.array([[1, 2, 3, 4]]).T + np.eye(4)*3)
+    inv_G = np.linalg.inv(G)
+    for i in (0, 1, 2, 3, 4):
+        P, Q, R, S = G[:i, :i], G[:i, i:], G[i:, :i],  G[i:, i:]
+        P_inv = np.linalg.inv(P)
+        inv_Blk = inv_blockmatr(P, P_inv, Q, R, S)
+        assert(allclose(inv_G, inv_Blk, atol = 1e-05))
+        print(inv_G - inv_Blk)
 
