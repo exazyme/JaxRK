@@ -97,6 +97,20 @@ class Prefactors(Reduce):
         assert original_len == len(self.prefactors)
         return original_len
 
+class Scale(Reduce):
+    def __init__(self, s:float):
+        super().__init__()
+        self.s = s
+
+    def __call__(self, inp:np.array, axis:int = 0) -> np.array:
+        return inp * self.s
+
+    def reduce_first_ax(self, inp:np.array) -> np.array:
+        return self.__call__(inp, 0)
+    
+    def new_len(self, original_len:int) -> int:
+        return original_len
+
 class Repeat(Reduce):
     def __init__(self, times:int):
         super().__init__()        
