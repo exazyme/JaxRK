@@ -1,3 +1,6 @@
+from functools import partial
+
+from jaxrk.reduce.lincomb import LinearReduce
 from .rkhs import FiniteVec
 from .core.typing import Array
 from .utilities import cv
@@ -8,13 +11,6 @@ import jax
 
 __log2pi_half = np.log(2. * np.pi) / 2
 
-"""def mvgauss_likelihood(y:Array, cov_chol:Array, prec_y:Array = None):
-    if prec_y is None:
-        prec_y = sp.linalg.cho_solve((cov_chol, True), y)
-    mll = np.sum(- 0.5 * np.einsum("ik,ik->k", y, prec_y)
-                    - np.log(np.diag(cov_chol)).sum()
-                    - len(cov_chol) * __log2pi_half)
-    return -mll"""
 
 def mvgauss_loglhood_mean0(y:Array, cov_chol:Array, prec_y:Array = None):
     if prec_y is None:
@@ -24,84 +20,95 @@ def mvgauss_loglhood_mean0(y:Array, cov_chol:Array, prec_y:Array = None):
     mll -= len(cov_chol) * __log2pi_half
     return mll.sum()
 
-def gp_predictive_distr(gram_train_test:Array, gram_test:Array, train_cov_chol:Array, train_prec_y:Array, outp_mean:Array = np.zeros(1), outp_std:Array = np.ones(1)):
-    mu = outp_mean + outp_std * np.dot(gram_train_test.T, train_prec_y)
-    v = sp.linalg.cho_solve((train_cov_chol, True), gram_train_test)
-    cov = (gram_test - np.dot(gram_train_test.T, v)) * outp_std**2
-    return mu, cov
+def gp_init(x_inner_x:Array, y:Array, noise:float, normalize_y:bool = False):
+    self = lambda x: None
+    #print("noise is ", noise)
+    if noise is None:
+        noise = Cov_regul(1, len(x_inner_x))
+    self.y, self.noise, self.normalize_y = (y, noise, normalize_y)
+    if self.y.ndim == 1:
+        self.y = self.y[:, np.newaxis]
+    if not normalize_y:
+        self.ymean = np.zeros(1)
+        self.ystd = np.ones(1)
+    else:
+        self.ymean = np.mean(y, 0, keepdims=True)
+        if len(x_inner_x) == 1:
+            self.ystd = np.ones(1)
+        else:
+            self.ystd = np.std(y, 0, keepdims=True)
+        self.y = (self.y - self.ymean) / self.ystd
+    train_cov = x_inner_x + np.eye(len(x_inner_x)) * self.noise
+    self.chol = sp.linalg.cholesky(train_cov, lower=True)
+
+    #matrix product of precision matrix and y. Called alpha in sklearn implementation
+    self.prec_y = sp.linalg.cho_solve((self.chol, True), self.y)
+    return self.chol, self.y, self.prec_y, self.ymean, self.ystd 
+
+def gp_predictive_mean(gram_train_test:Array, train_prec_y:Array, outp_mean:Array = np.zeros(1), outp_std:Array = np.ones(1)):
+    return outp_mean + outp_std * np.dot(gram_train_test.T, train_prec_y)
+
+def gp_predictive_cov(gram_train_test:Array, gram_test:Array, inv_train_cov:Array = None, chol_train_cov:Array = None, outp_std:Array = np.ones(1)):
+    if chol_train_cov is None:
+        cov = (gram_test - gram_train_test.T @ inv_train_cov @ gram_train_test) * outp_std**2
+    else:
+        v = sp.linalg.cho_solve((chol_train_cov, True), gram_train_test)
+        cov = (gram_test - np.dot(gram_train_test.T, v)) * outp_std**2
+    return cov
+
+def gp_predictive(gram_train_test:Array, gram_test:Array, chol_train_cov:Array, train_prec_y:Array, y_mean:Array = np.zeros(1), y_std:Array = np.ones(1), y_test:Array = None):
+    m = gp_predictive_mean(gram_train_test, train_prec_y, y_mean, y_std)
+    cov = gp_predictive_cov(gram_train_test, gram_test, chol_train_cov = chol_train_cov, outp_std = y_std)
+    if y_test is None:
+        return m, cov
+    else:
+        y_test = (y_test - y_mean) / y_std
+        return m, cov, mvgauss_loglhood_mean0(y_test - m, sp.linalg.cholesky(cov, lower=True))
+
+def gp_val_lhood(train_sel:Array, val_sel:Array, x_inner_x:Array, y:Array, noise:float, normalize_y:bool = False):
+    x_train = train_sel @ x_inner_x @ train_sel.T
+    x_train_val = train_sel @ x_inner_x @ val_sel.T
+    x_val = val_sel @ x_inner_x @ val_sel.T
+    if y.ndim == 1:
+        y = y[:, np.newaxis]
+    y_train = train_sel @ y
+    y_val = val_sel @ y
+
+    chol, y, prec_y, ymean, ystd = gp_init(x_train, y_train, noise, normalize_y)
+    return gp_predictive(x_train_val,
+                         x_val,
+                         chol,
+                         prec_y,
+                         y_mean = ymean,
+                         y_std = ystd,
+                         y_test = y_val)[-1]
+    
+vmap_gp_val_lhood = jax.vmap(gp_val_lhood, (0, 0, None, None, None, None, None))
 
 @jax.jit
-def gp_cv_likelihood_single(gram_full:Array, y_full:Array, train_sel, val_sel, chol_train, normalize_y:bool = True):
-    gram_full_val = gram_full@val_sel.T
-    train_y = train_sel@y_full
-    if not normalize_y:
-        y_mean, y_std = np.zeros(1), np.ones(1)
-    else:
-        y_mean, y_std = train_y.mean(0, keepdims=True), train_y.std(0, keepdims = True)
-        train_y = (train_y - y_mean) / y_std
-    
-    gram_train_val = train_sel@gram_full_val
-    print(gram_train_val.shape, len(train_y), len(val_sel))
-    mu, cov = gp_predictive_distr(gram_train_val, val_sel@gram_full_val, chol_train, sp.linalg.cho_solve((chol_train, True), train_y))
-    val_y_cent = (val_sel@y_full - y_mean) / y_std - mu
-    return mvgauss_loglhood_mean0(val_y_cent, np.diag(np.sqrt(np.diagonal(cov))), sp.linalg.solve(cov, val_y_cent))
-
-gp_cv_likelihood = jax.vmap(gp_cv_likelihood_single, (None, None, 0, 0, 0))
-
-def gp_cv_mlhood(inp:FiniteVec, outp:Array, train_val_idcs:Array, regul:float = None,):
-    if outp.ndim == 1:
-        outp = outp[:, np.newaxis]
+def gp_cv_val_lhood(train_val_idcs:Array, x_inner_x:Array, y:Array, regul:float = None, normalize_y:bool = True):
+    if y.ndim == 1:
+        y = y[:, np.newaxis]
     train_idcs, val_idcs = train_val_idcs
-    if regul is None:
-        regul = Cov_regul(val_idcs.shape[1], train_idcs.shape[1])
-    gram_inp = inp.inner()
-    gram_regul = (gram_inp + regul * np.eye(len(inp)))
-    cv_chol = cv.cholesky_submatr(gram_regul, train_idcs, zerofill=False)
 
-    val_sel = cv.idcs_to_selection_matr(len(inp), val_idcs)
-    rval = gp_cv_likelihood(gram_inp, outp,
-                            cv.idcs_to_selection_matr(len(inp), train_idcs),
-                            cv.idcs_to_selection_matr(len(inp), val_idcs),
-                            cv_chol)
+    #val_sel = cv.idcs_to_selection_matr(len(inp), val_idcs)
+    rval = vmap_gp_val_lhood(cv.idcs_to_selection_matr(len(x_inner_x), train_idcs),
+                             cv.idcs_to_selection_matr(len(x_inner_x), val_idcs),
+                             x_inner_x, y, regul, normalize_y)
     return rval.sum()
-
-
 
 class GP(object):
     def __init__(self, x:FiniteVec, y:Array, noise:float, normalize_y:bool = False):
-        if noise is None:
-            noise = Cov_regul(1, len(x))
-        self.x, self.y, self.noise, self.normalize_y = (x, y, noise, normalize_y)
-        if self.y.ndim == 1:
-            self.y = self.y[:, np.newaxis]
-        if not normalize_y:
-            self.ymean = np.zeros(1)
-            self.ystd = np.ones(1)
-        else:
-            self.ymean = np.mean(y, 0, keepdims=True)
-            if len(x) == 1:
-                self.ystd = np.ones(1)
-            else:
-                self.ystd = np.std(y, 0, keepdims=True)
-            self.y = (self.y - self.ymean) / self.ystd
-
-        train_cov = self.x.inner() + np.eye(len(self.x)) * self.noise 
-        self.chol = sp.linalg.cholesky(train_cov, lower=True)
-
-        #matrix product of precision matrix and y. Called alpha in sklearn implementation
-        self.prec_y = sp.linalg.cho_solve((self.chol, True), self.y)
-
+        self.x = x
+        self.chol, self.y, self.prec_y, self.ymean, self.ystd = gp_init(x.inner(), y, noise, normalize_y)
     
     def marginal_likelihood(self):
-        ml = mvgauss_loglhood_mean0(self.y, self.chol, self.prec_y)
-        ml += np.log(2. * np.pi) / 2 # lognormal prior
-        return ml
+        return mvgauss_loglhood_mean0(self.y, self.chol, self.prec_y)
 
     def predict(self, xtest:FiniteVec):
-        return gp_predictive_distr(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, self.ymean, self.ystd)
+        return gp_predictive(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, self.ymean, self.ystd)
     
     def post_pred_likelihood(self, xtest:FiniteVec, ytest:Array):
-        m, cov = self.predict(xtest)
-        if self.normalize_y:
-            ytest = (ytest - self.ymean) / self.ystd
-        return m, cov, mvgauss_loglhood_mean0(ytest - m, sp.linalg.cholesky(cov, lower=True))
+        return gp_predictive(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, y_mean = self.ymean, y_std = self.ystd, y_test = ytest)
+
+
