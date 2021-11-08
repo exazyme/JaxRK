@@ -24,3 +24,8 @@ def inv_blockmatr(P:Array, P_inv:Array, Q:Array, R:Array, S:Array) -> Array:
     P_ = P_inv + P_inv @ Q @ S_ @ R @ P_inv
     
     return np.vstack([np.hstack([P_, Q_]), np.hstack([R_, S_])])
+
+# FIXME: implement Cholesky up/downdates: see
+# https://en.wikipedia.org/wiki/Cholesky_decomposition#Adding_and_removing_rows_and_columns
+# and
+# https://math.stackexchange.com/questions/955874/cholesky-factor-when-adding-a-row-and-column-to-already-factorized-matrix
