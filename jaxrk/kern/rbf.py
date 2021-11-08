@@ -30,6 +30,8 @@ class GenGaussKernel(DensityKernel): #this is the gennorm distribution from scip
         self.dist = dist
         self.nconst = self.dist.power / (2 * self.dist._get_scale_param() * np.exp(sp.special.gammaln(1. / self.dist.power)))
 
+    def __str__(self) -> str:
+        return f"GenGaussKernel({self.dist})"
     @classmethod
     def make_unconstr(cls,
                       unconstr_scale:Array,

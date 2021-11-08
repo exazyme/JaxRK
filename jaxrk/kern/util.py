@@ -52,6 +52,9 @@ class SimpleScaler(Scaler):
     @classmethod
     def make_unconstr(cls, scale:Union[Array, float], bij: Bijection = NonnegToLowerBd()) -> "SimpleScaler":
         return SimpleScaler(bij(scale))
+    
+    def __str__(self) -> str:
+        return f"SimpleScaler({self.s})"
 
     def inv(self):
         return 1./self.s
@@ -98,6 +101,9 @@ class ScaledPairwiseDistance:
             self.ds = scaler
             self.is_global = False
     
+    def __str__(self) -> str:
+        return f"ScaledPairwiseDistance(scaler={self.gs if self.is_global else self.ds}, power={self.power})"
+
     def _get_scale_param(self):
         if self.is_global:
             return self.gs.inv()
