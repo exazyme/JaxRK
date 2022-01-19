@@ -4,7 +4,6 @@ import jax.numpy as np
 from typing import Union
 
 from ..core.constraints import NonnegToLowerBd
-from ..core.init_fn import ConstFn
 from ..core.typing import *
 from ..utilities.distances import dist
 

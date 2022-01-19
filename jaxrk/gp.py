@@ -28,15 +28,16 @@ def gp_init(x_inner_x:Array, y:Array, noise:float, normalize_y:bool = False):
     self.y, self.noise, self.normalize_y = (y, noise, normalize_y)
     if self.y.ndim == 1:
         self.y = self.y[:, np.newaxis]
-    if not normalize_y:
-        self.ymean = np.zeros(1)
-        self.ystd = np.ones(1)
-    else:
+    
+    y_standard_shape = (1, self.y.shape[1])
+    self.ymean = np.zeros(y_standard_shape)
+    self.ystd = np.ones(y_standard_shape)
+    if normalize_y:
         self.ymean = np.mean(y, 0, keepdims=True)
-        if len(x_inner_x) == 1:
-            self.ystd = np.ones(1)
-        else:
+        if len(x_inner_x) > 1:
             self.ystd = np.std(y, 0, keepdims=True)
+        assert self.ymean.shape == y_standard_shape
+        assert self.ystd.shape == y_standard_shape
         self.y = (self.y - self.ymean) / self.ystd
     train_cov = x_inner_x + np.eye(len(x_inner_x)) * self.noise
     self.chol = sp.linalg.cholesky(train_cov, lower=True)
@@ -65,7 +66,8 @@ def gp_predictive(gram_train_test:Array, gram_test:Array, chol_train_cov:Array, 
         y_test = (y_test - y_mean) / y_std
         return m, cov, mvgauss_loglhood_mean0(y_test - m, sp.linalg.cholesky(cov, lower=True))
 
-def gp_val_lhood(train_sel:Array, val_sel:Array, x_inner_x:Array, y:Array, noise:float, normalize_y:bool = False):
+#@jax.jit
+def gp_val_lhood(train_sel:Array, val_sel:Array, x_inner_x:Array, y:Array, noise:float):
     x_train = train_sel @ x_inner_x @ train_sel.T
     x_train_val = train_sel @ x_inner_x @ val_sel.T
     x_val = val_sel @ x_inner_x @ val_sel.T
@@ -74,7 +76,7 @@ def gp_val_lhood(train_sel:Array, val_sel:Array, x_inner_x:Array, y:Array, noise
     y_train = train_sel @ y
     y_val = val_sel @ y
 
-    chol, y, prec_y, ymean, ystd = gp_init(x_train, y_train, noise, normalize_y)
+    chol, y, prec_y, ymean, ystd = gp_init(x_train, y_train, noise, True)
     return gp_predictive(x_train_val,
                          x_val,
                          chol,
@@ -83,10 +85,29 @@ def gp_val_lhood(train_sel:Array, val_sel:Array, x_inner_x:Array, y:Array, noise
                          y_std = ystd,
                          y_test = y_val)[-1]
     
-vmap_gp_val_lhood = jax.vmap(gp_val_lhood, (0, 0, None, None, None, None, None))
+vmap_gp_val_lhood = jax.jit(jax.vmap(gp_val_lhood, (0, 0, None, None, None)))
 
-@jax.jit
-def gp_cv_val_lhood(train_val_idcs:Array, x_inner_x:Array, y:Array, regul:float = None, normalize_y:bool = True):
+def gp_mlhood(train_sel:Array, val_sel:Array, x_inner_x:Array, y:Array, noise:float):
+    x_train = train_sel @ x_inner_x @ train_sel.T
+    x_train_val = train_sel @ x_inner_x @ val_sel.T
+    x_val = val_sel @ x_inner_x @ val_sel.T
+    if y.ndim == 1:
+        y = y[:, np.newaxis]
+    y_train = train_sel @ y
+    y_val = val_sel @ y
+
+    chol, y, prec_y, ymean, ystd = gp_init(x_train, y_train, noise, True)
+    return gp_predictive(x_train_val,
+                         x_val,
+                         chol,
+                         prec_y,
+                         y_mean = ymean,
+                         y_std = ystd,
+                         y_test = y_val)[-1]
+    
+vmap_gp_mlhood = jax.jit(jax.vmap(gp_val_lhood, (0, 0, None, None, None)))
+
+def gp_cv_val_lhood(train_val_idcs:Array, x_inner_x:Array, y:Array, regul:float = None):
     if y.ndim == 1:
         y = y[:, np.newaxis]
     train_idcs, val_idcs = train_val_idcs
@@ -94,15 +115,16 @@ def gp_cv_val_lhood(train_val_idcs:Array, x_inner_x:Array, y:Array, regul:float 
     #val_sel = cv.idcs_to_selection_matr(len(inp), val_idcs)
     rval = vmap_gp_val_lhood(cv.idcs_to_selection_matr(len(x_inner_x), train_idcs),
                              cv.idcs_to_selection_matr(len(x_inner_x), val_idcs),
-                             x_inner_x, y, regul, normalize_y)
+                             x_inner_x, y, regul)
     return rval.sum()
 
 class GP(object):
     def __init__(self, x:FiniteVec, y:Array, noise:float, normalize_y:bool = False):
         self.x = x
+        self.noise = noise
         self.chol, self.y, self.prec_y, self.ymean, self.ystd = gp_init(x.inner(), y, noise, normalize_y)
     
-    def marginal_likelihood(self):
+    def marginal_loglhood(self):
         return mvgauss_loglhood_mean0(self.y, self.chol, self.prec_y)
 
     def predict(self, xtest:FiniteVec):
@@ -110,5 +132,3 @@ class GP(object):
     
     def post_pred_likelihood(self, xtest:FiniteVec, ytest:Array):
         return gp_predictive(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, y_mean = self.ymean, y_std = self.ystd, y_test = ytest)
-
-

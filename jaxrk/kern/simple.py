@@ -10,11 +10,7 @@ from jax.scipy.special import logsumexp
 from scipy.optimize import minimize
 from scipy.stats import multivariate_normal
 
-from ..kern.base import DensityKernel, Kernel
-from ..kern.util import ScaledPairwiseDistance
-from ..core.init_fn import ConstFn, ConstIsotropicFn
-from ..core.typing import ConstOrInitFn
-from ..core.init_fn import ConstFn, ConstIsotropicFn
+from ..kern.base import Kernel
 from ..core.constraints import NonnegToLowerBd, Bijection, CholeskyBijection
 from ..utilities.views import tile_view
 

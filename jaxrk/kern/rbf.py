@@ -3,7 +3,6 @@ from typing import Callable, Tuple, Union, Optional
 from ..core.typing import PRNGKeyT, Shape, Dtype, Array, ConstOrInitFn
 from functools import partial
 from ..core.constraints import NonnegToLowerBd, Bijection, SoftBound, SquashingToBounded
-from ..core.init_fn import ConstFn
 from dataclasses import dataclass
 
 import jax.numpy as np
@@ -32,6 +31,7 @@ class GenGaussKernel(DensityKernel): #this is the gennorm distribution from scip
 
     def __str__(self) -> str:
         return f"GenGaussKernel({self.dist})"
+        
     @classmethod
     def make_unconstr(cls,
                       unconstr_scale:Array,
