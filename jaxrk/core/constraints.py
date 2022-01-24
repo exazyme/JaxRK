@@ -107,7 +107,7 @@ class CholeskyBijection(Bijection):
         return np.tril(param, -1) + np.diagflat(self.diag_bij(np.diagonal(param)))
 
     def psd_to_param(self, psd_matr):
-        L = sp.linalg.eigh(psd_matr, lower = True)[1]
+        L = sp.linalg.cholesky(psd_matr, lower = True)
         return self.chol_to_param(L)
 
     def chol_to_param(self, chol):

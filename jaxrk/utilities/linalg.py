@@ -2,6 +2,13 @@ from ..core.typing import Array
 import jax.numpy as np
 import numpy.random as random
 
+
+def block_matrix(UL:Array, UR:Array, LL:Array, LR:Array) -> Array:
+    return np.vstack([np.hstack([UL, UR]), np.hstack([LL, LR])])
+
+def augment_gram(G_old:Array, G_old_new:Array, G_new:Array)-> Array:
+    return block_matrix(G_old, G_old_new, G_old_new.T, G_new)
+
 def inv_blockmatr(P:Array, P_inv:Array, Q:Array, R:Array, S:Array) -> Array:
     """Given P and P^{-1}, compute the inverse of the block-partitioned matrix
     P Q

@@ -44,7 +44,7 @@ def gp_init(x_inner_x:Array, y:Array, noise:float, normalize_y:bool = False):
 
     #matrix product of precision matrix and y. Called alpha in sklearn implementation
     self.prec_y = sp.linalg.cho_solve((self.chol, True), self.y)
-    return self.chol, self.y, self.prec_y, self.ymean, self.ystd 
+    return self.chol, self.y, self.prec_y, self.ymean, self.ystd, noise
 
 def gp_predictive_mean(gram_train_test:Array, train_prec_y:Array, outp_mean:Array = np.zeros(1), outp_std:Array = np.ones(1)):
     return outp_mean + outp_std * np.dot(gram_train_test.T, train_prec_y)
@@ -121,9 +121,12 @@ def gp_cv_val_lhood(train_val_idcs:Array, x_inner_x:Array, y:Array, regul:float 
 class GP(object):
     def __init__(self, x:FiniteVec, y:Array, noise:float, normalize_y:bool = False):
         self.x = x
-        self.noise = noise
-        self.chol, self.y, self.prec_y, self.ymean, self.ystd = gp_init(x.inner(), y, noise, normalize_y)
-    
+        self.x_inner_x = x.inner()
+        self.chol, self.y, self.prec_y, self.ymean, self.ystd, self.noise = gp_init(self.x_inner_x, y, noise, normalize_y)
+        
+    def __str__(self,):
+        return f"μ_Y = {self.ymean.squeeze()} ± σ_Y ={self.ystd.squeeze()}, σ_noise: {self.noise}, trace_chol: {self.chol.trace().squeeze()} trace_xx^t: {self.x_inner_x.trace().squeeze()}, {self.x_inner_x[0,:5]}, {self.x_inner_x.shape}"
+
     def marginal_loglhood(self):
         return mvgauss_loglhood_mean0(self.y, self.chol, self.prec_y)
 
