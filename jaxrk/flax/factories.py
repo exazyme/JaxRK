@@ -1,16 +1,16 @@
-from mimetypes import init
-import jax.numpy as np
-from flax.linen import Module
-from typing import Callable, Generic, Sequence, Tuple, TypeVar, Union
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from typing import Callable, Generic, Sequence, Tuple, TypeVar, Union
 
+import jax.numpy as np
+import numpy as onp
+from pedata.config import alphabets
 from pedata.disk_cache import load_similarity
 
-from ..kern import GenGaussKernel, DictKernel
-from ..core.typing import Bijection, Array, PRNGKeyT
-from ..core import constraints
+from flax.linen import Module
 
+from ..core import constraints
+from ..core.typing import Array, Bijection, PRNGKeyT
+from ..kern import DictKernel, GenGaussKernel
 
 K = TypeVar("K")
 
@@ -66,7 +66,6 @@ class GenGaussFactory(Factory[GenGaussKernel]):
                                shape_init_fn = lambda rng: sh_b.inv(shape_init) + shape_init_noise(rng),
                                scale_bij = sc_b,
                                shape_bij = sh_b)
-    
 
 class DictKernFactory(Factory[DictKernel]):
     def __init__(self,
@@ -84,10 +83,27 @@ class DictKernFactory(Factory[DictKernel]):
                           cholesky_lower = self.chol_bij.param_to_chol(flax_mod.param(param_name, self.init_fn)))
     
     @staticmethod
-    def from_similarity(alphabet_type:str, similarity_name:str, noise:Callable[[PRNGKeyT, tuple[int, int]], Array], diag_regul:float = 0.):
-        insp_vals, sm = load_similarity(alphabet_type, similarity_name)
+    def from_similarity(alphabet_type:str, similarity_name:str, noise:Callable[[PRNGKeyT, tuple[int, int]], Array], diag_regul:float = 0., diag_lower_bound:float = np.finfo(np.float32).tiny) -> "DictKernFactory":
+        alph, sm = load_similarity(alphabet_type, similarity_name)
         sm = sm + np.eye(sm.shape[0]) * diag_regul
-        chol_bij = constraints.CholeskyBijection(diag_bij=constraints.NonnegToLowerBd(lower_bound = np.finfo(np.float32).tiny, bij = constraints.SquarePlus()))
-        init_param_lower = chol_bij.psd_to_param(sm)
-        init_fn = lambda rng: np.tril(noise(rng, sm.shape)) + init_param_lower
-        return DictKernFactory(insp_vals, init_fn, chol_bij)
+        return DictKernFactory.from_psd_matrix(alph, sm, noise, diag_lower_bound)
+    
+    @staticmethod
+    def from_diagonal(alphabet_type:str, diagonal_value:float, noise:Callable[[PRNGKeyT, tuple[int, int]], Array], diag_lower_bound:float = np.finfo(np.float32).tiny) -> "DictKernFactory":
+        if alphabet_type.lower() == "aa":
+            alph = onp.array(alphabets.aa_alphabet)
+        elif alphabet_type.lower() == "dna":
+            alph = onp.array(alphabets.dna_alphabet)
+        else:
+            assert False, "Alphabet type unknown"
+        
+        sm = np.eye(alph.size) * diagonal_value
+        return DictKernFactory.from_psd_matrix(alph, sm, noise, diag_lower_bound)
+    
+    @staticmethod
+    def from_psd_matrix(alphabet:Sequence[str], psd_matrix:np.ndarray, noise:Callable[[PRNGKeyT, tuple[int, int]], Array], diag_lower_bound:float = np.finfo(np.float32).tiny):
+        chol_bij = constraints.CholeskyBijection(diag_bij=constraints.NonnegToLowerBd(lower_bound = diag_lower_bound, bij = constraints.SquarePlus()))      
+
+        init_fn = lambda rng: np.tril(noise(rng, psd_matrix.shape)) + chol_bij.psd_to_param(psd_matrix)
+        return DictKernFactory(alphabet, init_fn, chol_bij)
+

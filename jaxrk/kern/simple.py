@@ -1,4 +1,4 @@
-from pathlib2 import Path
+from pathlib import Path
 from typing import Callable
 from ..core.typing import PRNGKeyT, Shape, Dtype, Array
 from functools import partial
@@ -54,13 +54,8 @@ class DictKernel(Kernel):
 
     def __init__(self, inspace_vals:Array, gram_values:Array = None, cholesky_lower:Array = None, drop_neg_gram = True):
         super().__init__()
-
         
-
         assert gram_values != cholesky_lower, "Exactly one of gram_values and cholesky_lower has to be defined."
-        
-
-        
             
         if gram_values is None:
             assert cholesky_lower is not None, "Exactly one of gram_values and cholesky_lower has to be defined."
