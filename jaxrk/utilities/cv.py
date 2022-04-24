@@ -2,7 +2,6 @@ import jax.numpy as np, jax.scipy as sp
 from jax import vmap, jit, pmap
 from jax import random
 from functools import partial
-from jax.ops import index, index_update
 from ..core.typing import PRNGKeyT, Array
 
 
@@ -44,7 +43,9 @@ def idcs_to_selection_matr(n_orig:int, idcs:Array, idcs_sorted:bool = False) -> 
     rval = np.zeros((*idcs.shape, n_orig))
     for split, vi in enumerate(idcs):
         for r, c in enumerate(vi):
-            rval = rval.at[index[split, r, c]].set(1.)
+            rval = rval.at[split, r, c].set(1.)
+            #Old implementation was:
+            #rval = rval.at[index[split, r, c]].set(1.)
     return rval
 
 def invert_submatr(gram:Array, train_idcs:Array, zerofill:bool = True) -> Array:
