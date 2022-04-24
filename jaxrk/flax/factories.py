@@ -28,13 +28,13 @@ class ConstFactory(Generic[K]):
     
     @staticmethod
     def wrap(factory_or_instance:Union[Factory[K], K]) -> Factory[K]:
-        if isinstance(factory_or_instance, Factory):
+        if isinstance(factory_or_instance, Factory) or factory_or_instance is None:
             return factory_or_instance
         else:
             return ConstFactory(factory_or_instance)
 
 
-class GenGaussFactory(Factory[GenGaussKernel]):
+class GenGaussKernelFactory(Factory[GenGaussKernel]):
 
     def __init__(self,
                  scale_init_fn:Callable[[PRNGKeyT], Array],
@@ -62,7 +62,7 @@ class GenGaussFactory(Factory[GenGaussKernel]):
         sc_b:Bijection = constraints.NonnegToLowerBd(lower_bound = scale_lower_bound, bij = constraints.SquarePlus())
         sh_b:Bijection = constraints.SquashingToBounded(lower_bound = shape_lower_bound, upper_bound = shape_upper_bound)
                          
-        return GenGaussFactory(scale_init_fn = lambda rng: sc_b.inv(scale_init) + scale_init_noise(rng),
+        return GenGaussKernelFactory(scale_init_fn = lambda rng: sc_b.inv(scale_init) + scale_init_noise(rng),
                                shape_init_fn = lambda rng: sh_b.inv(shape_init) + shape_init_noise(rng),
                                scale_bij = sc_b,
                                shape_bij = sh_b)
