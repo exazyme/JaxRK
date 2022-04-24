@@ -7,16 +7,11 @@ Created on Thu Jan 10 10:01:56 2019
 import jax
 from typing import Callable, List, TypeVar, Tuple
 
-from jax import jit
 from functools import partial
 import jax.numpy as np
 import jax.scipy as sp
 import jax.scipy.stats as stats
 from jax.numpy import exp, log, sqrt
-from jax.scipy.special import logsumexp
-from jax.lax import scan, map
-from jax import vmap
-from jax.ops import index_update
 from ..core.typing import  Array
 from ..utilities.cv import vmatmul_fixed_inp
 from .base import Reduce
@@ -35,7 +30,7 @@ def vmult_inp_subsclices(linmap, gram, gram_slice):
     rval = []
     for i, m in enumerate(linmap):
         rval.append(vmatmul_fixed_inp(m, gram[gram_slice[i][0]:gram_slice[i][1], :]))
-    return np.array(rval)
+    return np.vstack(rval)
 
 
 
@@ -131,7 +126,7 @@ class VLinearReduce(Reduce):
     
     def reduce_first_ax(self, inp:Array):
         rval = np.vstack(vmult_inp_subsclices(self.linmaps, inp, self.gram_slice))
-        return np.vstack(rval)
+        return rval
 
     def new_len(self, original_len: int) -> int:
         return self.res_len
