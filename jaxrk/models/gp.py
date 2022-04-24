@@ -1,16 +1,14 @@
 from functools import partial
+import functools
 
 from jaxrk.reduce.lincomb import LinearReduce
-from .rkhs import FiniteVec
-from .core.typing import Array
-from .utilities import cv
+from ..rkhs import FiniteVec
+from ..core.typing import Array
+from ..utilities import cv
 import jax.numpy as np, jax.scipy as sp
-import jax.scipy.stats as stats
 from typing import Any, Callable
 from jaxrk.rkhs import Cov_regul
 import jax
-from tensorflow_probability.substrates.jax import stats
-
 
 __log2pi_half = np.log(2. * np.pi) / 2
 
@@ -28,26 +26,26 @@ def gp_init(x_inner_x:Array, y:Array, noise:float, normalize_y:bool = False):
     #print("noise is ", noise)
     if noise is None:
         noise = Cov_regul(1, len(x_inner_x))
-    self.y, self.noise, self.normalize_y = (y, noise, normalize_y)
-    if self.y.ndim == 1:
-        self.y = self.y[:, np.newaxis]
+    y, noise, normalize_y = (y, noise, normalize_y)
+    if y.ndim == 1:
+        y = y[:, np.newaxis]
     
-    y_standard_shape = (1, self.y.shape[1])
-    self.ymean = np.zeros(y_standard_shape)
-    self.ystd = np.ones(y_standard_shape)
+    y_standard_shape = (1, y.shape[1])
+    ymean = np.zeros(y_standard_shape)
+    ystd = np.ones(y_standard_shape)
     if normalize_y:
-        self.ymean = np.mean(y, 0, keepdims=True)
+        ymean = np.mean(y, 0, keepdims=True)
         if len(x_inner_x) > 1:
-            self.ystd = np.std(y, 0, keepdims=True)
-        assert self.ymean.shape == y_standard_shape
-        assert self.ystd.shape == y_standard_shape
-        self.y = (self.y - self.ymean) / self.ystd
-    train_cov = x_inner_x + np.eye(len(x_inner_x)) * self.noise
-    self.chol = sp.linalg.cholesky(train_cov, lower=True)
+            ystd = np.std(y, 0, keepdims=True)
+        assert ymean.shape == y_standard_shape, f"Mean had shape {ymean.shape} instead of expected {y_standard_shape}"
+        assert ystd.shape == y_standard_shape, f"Standard deviation had shape {ystd.shape} instead of expected {y_standard_shape}"
+        y = (y - ymean) / ystd
+    train_cov = x_inner_x + np.eye(len(x_inner_x)) * noise
+    chol = sp.linalg.cholesky(train_cov, lower=True)
 
     #matrix product of precision matrix and y. Called alpha in sklearn implementation
-    self.prec_y = sp.linalg.cho_solve((self.chol, True), self.y)
-    return self.chol, self.y, self.prec_y, self.ymean, self.ystd, noise
+    prec_y = sp.linalg.cho_solve((chol, True), y)
+    return chol, y, prec_y, ymean, ystd, noise
 
 def gp_predictive_mean(gram_train_test:Array, train_prec_y:Array, outp_mean:Array = np.zeros(1), outp_std:Array = np.ones(1)):
     return outp_mean + outp_std * np.dot(gram_train_test.T, train_prec_y)
@@ -61,6 +59,20 @@ def gp_predictive_cov(gram_train_test:Array, gram_test:Array, inv_train_cov:Arra
         #pdb.set_trace()
         cov = (gram_test - np.dot(gram_train_test.T, v)) * outp_std**2
     return cov
+
+    
+# def gp_predictive_var_1(gram_train_test:Array, gram_test:Array, inv_train_cov:Array = None, chol_train_cov:Array = None, outp_std:Array = np.ones(1)):
+#     vm = jax.vmap(partial(gp_predictive_cov, inv_train_cov = inv_train_cov, chol_train_cov=chol_train_cov, outp_std=outp_std), (1, 0))
+#     return vm(gram_train_test, jax.numpy.diagonal(gram_test))
+
+
+def gp_predictive_var(*args, **kwargs):
+    return jax.numpy.diagonal(gp_predictive_cov(*args, **kwargs))
+
+def gp_predictive_mean_var(gram_train_test:Array, gram_test:Array, chol_train_cov:Array, train_prec_y:Array, y_mean:Array = np.zeros(1), y_std:Array = np.ones(1), y_test:Array = None):
+    m = gp_predictive_mean(gram_train_test, train_prec_y, y_mean, y_std)
+    var = gp_predictive_var(gram_train_test, gram_test, chol_train_cov = chol_train_cov, outp_std = y_std)
+    return m, var
 
 def gp_predictive(gram_train_test:Array, gram_test:Array, chol_train_cov:Array, train_prec_y:Array, y_mean:Array = np.zeros(1), y_std:Array = np.ones(1), y_test:Array = None):
     m = gp_predictive_mean(gram_train_test, train_prec_y, y_mean, y_std)
@@ -100,8 +112,6 @@ def spearman_rho_loss(x:Array, y:Array):
     c =  np.mean((rx - rx.mean()) * (ry - ry.mean()))
     sd = rx.std().squeeze() * ry.std().squeeze()
     print(rx, ry, sd)
-    import pdb
-    pdb.set_trace()
     return c / sd
 
 class UcbRankLoss(object):
@@ -187,8 +197,13 @@ class GP(object):
     def marginal_loglhood(self):
         return mvgauss_loglhood_mean0(self.y, self.chol, self.prec_y)
 
-    def predict(self, xtest:FiniteVec):
-        return gp_predictive(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, self.ymean, self.ystd)
+    def predict(self, xtest:FiniteVec, diag=True):
+        if not diag:
+            func = gp_predictive
+        else:
+            func = gp_predictive_mean_var
+        return func(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, self.ymean, self.ystd)
+        
     
     def post_pred_likelihood(self, xtest:FiniteVec, ytest:Array):
         return gp_predictive(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, y_mean = self.ymean, y_std = self.ystd, y_test = ytest)

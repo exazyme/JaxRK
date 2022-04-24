@@ -1,7 +1,7 @@
 import copy
 from jaxrk.reduce.base import TileView
 from jaxrk.rkhs.cov import Cov_regul
-from jaxrk.rkhs.conditional_operator import RidgeCmo
+from jaxrk.models.conditional_operator import RidgeCmo
 from operator import inv
 
 import jax.numpy as np
@@ -10,7 +10,8 @@ import pytest
 from numpy.testing import assert_allclose
 from jax import random
 
-from jaxrk.rkhs import Cov_regul, CovOp, Cdo, Cmo, FiniteOp, FiniteVec, inner, CombVec, Loo_RidgeCmo 
+from jaxrk.rkhs import Cov_regul, CovOp, FiniteOp, FiniteVec, inner, CombVec 
+from jaxrk.models.conditional_operator import Cdo, Cmo
 from jaxrk.kern import (SplitDimsKernel, PeriodicKernel, GenGaussKernel)
 from jaxrk.utilities.array_manipulation import all_combinations
 
