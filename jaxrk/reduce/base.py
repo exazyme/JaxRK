@@ -52,6 +52,16 @@ class Reduce(Callable, ABC):
                 carry = gr.new_len(carry)
         return carry
 
+class LinearizableReduce(Reduce):
+    @abstractmethod
+    def linearize(self, gram_shape:tuple) -> np.array:
+        """Linearized version of reduce_first_ax. 
+
+        Args:
+            gram_shape (tuple): The gram matrix
+        """
+        pass
+
 # class SeqReduce(Reduce):
 #     children:List[Reduce]
     
@@ -125,7 +135,7 @@ class Repeat(Reduce):
     def new_len(self, original_len:int) -> int:
         return original_len * self.times
 
-class TileView(Reduce):
+class TileView(LinearizableReduce):
     def __init__(self, result_len:int):
         super().__init__()        
         assert result_len > 0
@@ -134,6 +144,9 @@ class TileView(Reduce):
     def reduce_first_ax(self, inp:np.array) -> np.array:
         assert self.result_len % inp.shape[0] == 0, "Input can't be broadcasted to target length %d" % self.result_len
         return tile_view(inp, self.result_len//inp.shape[0])
+    
+    def linearize(self, gram_shape: tuple):
+        return tile_view(np.eye(gram_shape[0]), self.result_len//gram_shape[0])
     
     def new_len(self, original_len:int) -> int:
         return self.result_len
@@ -169,8 +182,10 @@ class BalancedRed(Reduce):
         self.points_per_split = points_per_split
         if average:
             self.red = np.mean
+            self.factor = 1./points_per_split
         else:
             self.red = np.sum
+            self.factor = 1.
 
     def __call__(self, inp:np.array, axis:int = 0) -> np.array:
         perm = list(range(len(inp.shape)))
@@ -185,6 +200,13 @@ class BalancedRed(Reduce):
 
     def reduce_first_ax(self, inp:np.array) -> np.array:
         return self.__call__(inp, 0)
+
+    def linearize(self, inp_shape:tuple) -> np.array:
+        new_len = self.new_len(inp_shape[0])
+        rval = np.zeros((new_len, inp_shape[0]))
+        for i in range(new_len):
+            rval = rval.at[i, i*self.points_per_split:(i+1)*self.points_per_split].set(self.factor)
+        return rval
 
     def new_len(self, original_len:int) -> int:
         assert original_len % self.points_per_split == 0

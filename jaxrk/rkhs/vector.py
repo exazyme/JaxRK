@@ -1,5 +1,6 @@
 from copy import copy
 from dataclasses import field
+from functools import partial
 
 from numpy.core.fromnumeric import squeeze
 from ..reduce.lincomb import LinearReduce
@@ -239,12 +240,23 @@ class CombVec(Vec, Generic[VrightT, VleftT]):
     def reduce_gram(self, gram, axis = 0):
         return Reduce.apply(gram, self.reduce, axis) 
 
+    #@partial(jax.jit, static_argnums=(0, 1))
     def inner(self, Y:"CombVec[VrightT, VleftT]"=None, full=True):
         if Y is None:
             Y = self
         else:
             assert(Y.operation == self.operation)
-        return self.reduce_gram(Y.reduce_gram(self.operation(self.vR.inner(Y.vR), self.vL.inner(Y.vL)), 1), 0)
+        rval = self.reduce_gram(Y.reduce_gram(self.operation(self.vR.inner(Y.vR), self.vL.inner(Y.vL)), 1), 0)
+        if full:
+            return rval
+        else:
+            return np.diagonal(rval)
+    
+
+    @partial(jax.jit, static_argnums=(0))
+    def diag_inner(self, ):
+        rval = self.reduce_gram(self.reduce_gram(self.operation(self.vR.inner(), self.vL.inner()), 1), 0)
+        return np.diagonal(rval)
     
     def extend_reduce(self, r:List[Reduce]) -> "CombVec":
         if r is None or len(r) == 0:

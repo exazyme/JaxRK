@@ -14,7 +14,7 @@ import jax.scipy.stats as stats
 from jax.numpy import exp, log, sqrt
 from ..core.typing import  Array
 from ..utilities.cv import vmatmul_fixed_inp
-from .base import Reduce
+from .base import LinearizableReduce, Reduce
 
 
 
@@ -26,17 +26,37 @@ def compute_slices(l:List[int]):
     return np.vstack([prepend_0, cs]).T
     
 
-def vmult_inp_subsclices(linmap, gram, gram_slice):
-    rval = []
-    for i, m in enumerate(linmap):
-        rval.append(vmatmul_fixed_inp(m, gram[gram_slice[i][0]:gram_slice[i][1], :]))
-    return np.vstack(rval)
 
+    
+class LinearReduce(Reduce):
+    
+    def __init__(self, linear_map:Array):
+        super().__init__()
+        self.linear_map = linear_map
+
+    def reduce_first_ax(self, inp:Array):
+        assert len(inp.shape) == 2
+        assert self.linear_map.shape[-1] == inp.shape[0]
+        return self.linear_map @ inp
+    
+    def new_len(self, original_len:int):
+        assert (self.linear_map.shape[-1]) == original_len, self.__class__.__name__ + " expects a gram with %d columns" % self.linear_map.shape[1]
+        return self.linear_map.shape[-2]
+
+    @classmethod
+    def sum_from_unique(cls, input:Array, mean:bool = True) -> Tuple[np.array, np.array, "LinearReduce"]:
+        un, cts = np.unique(input, return_counts=True)
+        un_idx = [np.argwhere(input == un[i]).flatten() for i in range(un.size)]
+        m = np.zeros((len(un_idx), input.shape[0]))
+        for i, idx in enumerate(un_idx):
+            b = np.ones(int(cts[i].squeeze())).squeeze()
+            m = m.at[i, idx.squeeze()].set(b/cts[i].squeeze() if mean else b)
+        return un, cts, LinearReduce(m)
 
 
 #ListOfArray_or_Array_T = TypeVar("CombT", List[Array], Array)
 
-class SparseReduce(Reduce):
+class SparseReduce(LinearizableReduce):
     """SparseReduce constructs a Gram matrix by summing/averaging over rows of its input
 
         Args:
@@ -78,7 +98,7 @@ class SparseReduce(Reduce):
         assert (self.max_idx + 1) <= original_len, self.__class__.__name__ + " expects a longer gram to operate on"
         return len(self.idcs)
     
-    def to_linear(self) -> "LinearReduce":
+    def linearize(self, inp_shape:tuple) -> np.array:
         n_out = np.sum(np.array([len(i) for i in self.idcs]))
         n_in = self.max_idx + 1
         offset = 0
@@ -88,7 +108,10 @@ class SparseReduce(Reduce):
                 idx1 = np.repeat(np.arange(self.idcs[i].shape[0]) + offset, self.idcs[i].shape[1])
                 lin_map = jax.ops.index_update(lin_map, (idx1, self.idcs[i].flatten()),  1./ self.idcs[i].shape[1] if self.average else 1.)
             offset += self.idcs[i].shape[0]
-        return LinearReduce(lin_map)
+        return lin_map
+    
+    def to_linear(self, inp_shape:tuple=None) -> "LinearReduce":
+        return LinearReduce(self.linearize(None))
     
     @classmethod
     def sum_from_unique(cls, input:np.array, mean:bool = True) -> Tuple[np.array, np.array, "SparseReduce"]:        
@@ -111,49 +134,3 @@ class SparseReduce(Reduce):
 
         #assert False
         return un_sorted, cts_sorted, SparseReduce(el, mean)
-
-class VLinearReduce(Reduce):
-    def __init__(self, linmaps:List[Array]):
-        #TODO: Docstring
-        super().__init__()
-        self.linmaps = linmaps
-        self.res_len = 0
-        self.orig_len = 0
-        for m in linmaps:
-            self.res_len += m.shape[0] * m.shape[1]
-            self.orig_len += m.shape[2]
-        self.gram_slice = compute_slices([m.shape[2] for m in linmaps])
-    
-    def reduce_first_ax(self, inp:Array):
-        rval = np.vstack(vmult_inp_subsclices(self.linmaps, inp, self.gram_slice))
-        return rval
-
-    def new_len(self, original_len: int) -> int:
-        return self.res_len
-
-
-
-class LinearReduce(Reduce):
-    
-    def __init__(self, linear_map:Array):
-        super().__init__()
-        self.linear_map = linear_map
-
-    def reduce_first_ax(self, inp:Array):
-        assert len(inp.shape) == 2
-        assert self.linear_map.shape[1] == inp.shape[0]
-        return self.linear_map @ inp
-    
-    def new_len(self, original_len:int):
-        assert (self.linear_map.shape[1]) == original_len, self.__class__.__name__ + " expects a gram with %d columns" % self.linear_map.shape[1]
-        return self.linear_map.shape[0]
-
-    @classmethod
-    def sum_from_unique(cls, input:Array, mean:bool = True) -> Tuple[np.array, np.array, "LinearReduce"]:
-        un, cts = np.unique(input, return_counts=True)
-        un_idx = [np.argwhere(input == un[i]).flatten() for i in range(un.size)]
-        m = np.zeros((len(un_idx), input.shape[0]))
-        for i, idx in enumerate(un_idx):
-            b = np.ones(int(cts[i].squeeze())).squeeze()
-            m = m.at[i, idx.squeeze()].set(b/cts[i].squeeze() if mean else b)
-        return un, cts, LinearReduce(m)
