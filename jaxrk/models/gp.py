@@ -1,5 +1,4 @@
 from functools import partial
-import functools
 
 from jaxrk.reduce.lincomb import LinearReduce
 from ..rkhs import FiniteVec
@@ -13,13 +12,43 @@ import jax
 __log2pi_half = np.log(2. * np.pi) / 2
 
 
-def mvgauss_loglhood_mean0(y:Array, cov_chol:Array, prec_y:Array = None):
+#this is the loglikelihood for a univariate GP with zero mean.
+
+def gp_loglhood_mean0_univ(y:Array, cov_chol:Array, prec_y:Array = None) -> float:
+    """Log likelihood for a univariate GP with zero mean.
+    (Which is the same as that of a multivariate gaussian distribution)
+
+    Args:
+        y (Array): The observed values.
+        cov_chol (Array): A cholesky factor of the gram matrix/covariance matrix
+        prec_y (Array, optional): The product of precision matrix and y. Defaults to None, in which case it is calculated from the other arguments.
+
+    Returns:
+        float: Log likelihood
+    """
     if prec_y is None:
         prec_y = sp.linalg.cho_solve((cov_chol, True), y)
     mll  = - 0.5 * np.einsum("ik,ik->k", y, prec_y)
     mll -= np.log(np.diag(cov_chol)).sum()
     mll -= len(cov_chol) * __log2pi_half
     return mll.sum()
+
+@jax.jit
+def gp_loglhood_mean0(y:Array, cov_chol:Array, prec_y:Array = None) -> float:
+    """Log likelihood for a multivariate GP with zero mean, for which the covariance matrix is the same for all dimensions.
+    Args:
+        y (Array): The observed values.
+        cov_chol (Array): A cholesky factor of the gram matrix/covariance matrix
+        prec_y (Array, optional): The product of precision matrix and y. Defaults to None, in which case it is calculated from the other arguments.
+
+    Returns:
+        float: Log likelihood
+    """
+    rval = 0.
+    for y_dim in y.T:
+        incr = gp_loglhood_mean0_univ(y_dim[:, np.newaxis], cov_chol, prec_y)
+        rval += incr
+    return rval
 
 def gp_init(x_inner_x:Array, y:Array, noise:float, normalize_y:bool = False):
     self = lambda x: None
@@ -47,41 +76,57 @@ def gp_init(x_inner_x:Array, y:Array, noise:float, normalize_y:bool = False):
     prec_y = sp.linalg.cho_solve((chol, True), y)
     return chol, y, prec_y, ymean, ystd, noise
 
-def gp_predictive_mean(gram_train_test:Array, train_prec_y:Array, outp_mean:Array = np.zeros(1), outp_std:Array = np.ones(1)):
+
+def gp_predictive_mean_univ(gram_train_test:Array, train_prec_y:Array, outp_mean:Array = np.zeros(1), outp_std:Array = np.ones(1)):
     return outp_mean + outp_std * np.dot(gram_train_test.T, train_prec_y)
+gp_predictive_mean = jax.vmap(gp_predictive_mean_univ, (None, 1, 1, 1), 1)
 
-def gp_predictive_cov(gram_train_test:Array, gram_test:Array, inv_train_cov:Array = None, chol_train_cov:Array = None, outp_std:Array = np.ones(1)):
+def gp_predictive_cov_univ_chol(gram_train_test:Array, gram_test:Array, chol_train_cov:Array):
+    v = sp.linalg.cho_solve((chol_train_cov, True), gram_train_test)
+    return (gram_test - np.dot(gram_train_test.T, v)) 
+
+def gp_predictive_cov_univ_inv(gram_train_test:Array, gram_test:Array, inv_train_cov:Array):
+    (gram_test - gram_train_test.T @ inv_train_cov @ gram_train_test)
+
+
+def gp_predictive_cov_univ(gram_train_test:Array, gram_test:Array, inv_train_cov:Array = None, chol_train_cov:Array = None, outp_std:Array = np.ones(1)):
     if chol_train_cov is None:
-        cov = (gram_test - gram_train_test.T @ inv_train_cov @ gram_train_test) * outp_std**2
-    else:
-        v = sp.linalg.cho_solve((chol_train_cov, True), gram_train_test)
-        #import pdb
-        #pdb.set_trace()
-        cov = (gram_test - np.dot(gram_train_test.T, v)) * outp_std**2
-    return cov
+        return gp_predictive_cov_univ_inv(gram_train_test, gram_test, inv_train_cov, outp_std)
+    return gp_predictive_cov_univ_chol(gram_train_test, gram_test,  chol_train_cov, outp_std)
 
+@partial(jax.vmap, in_axes = (None, 1), out_axes = 2)
+def scale_dims(inp, scale_per_dim) -> np.ndarray:
+    return inp * scale_per_dim
+
+@partial(jax.vmap, in_axes = (None, -1), out_axes = 2)
+def scale_dims_inv(inp, scale_per_dim) -> np.ndarray:
+    return inp / scale_per_dim
+
+#@partial(jax.vmap, in_axes = (None, 1, 1), out_axes = 1)
+def scale_and_shift_dims(inp, shift_per_dim, scale_per_dim) -> np.ndarray:
+    return inp * scale_per_dim + shift_per_dim
+
+#@partial(jax.vmap, in_axes = (None, 1, 1), out_axes = 1)
+def scale_and_shift_dims_inv(inp, shift_per_dim, scale_per_dim) -> np.ndarray:
+    return (inp - shift_per_dim) / scale_per_dim
+
+#gp_predictive_cov = jax.vmap(gp_predictive_cov_univ, (None, None, None, None, 1), 2)
     
 # def gp_predictive_var_1(gram_train_test:Array, gram_test:Array, inv_train_cov:Array = None, chol_train_cov:Array = None, outp_std:Array = np.ones(1)):
 #     vm = jax.vmap(partial(gp_predictive_cov, inv_train_cov = inv_train_cov, chol_train_cov=chol_train_cov, outp_std=outp_std), (1, 0))
 #     return vm(gram_train_test, jax.numpy.diagonal(gram_test))
 
 
-def gp_predictive_var(*args, **kwargs):
-    return jax.numpy.diagonal(gp_predictive_cov(*args, **kwargs))
-
-def gp_predictive_mean_var(gram_train_test:Array, gram_test:Array, chol_train_cov:Array, train_prec_y:Array, y_mean:Array = np.zeros(1), y_std:Array = np.ones(1), y_test:Array = None):
-    m = gp_predictive_mean(gram_train_test, train_prec_y, y_mean, y_std)
-    var = gp_predictive_var(gram_train_test, gram_test, chol_train_cov = chol_train_cov, outp_std = y_std)
-    return m, var
-
 def gp_predictive(gram_train_test:Array, gram_test:Array, chol_train_cov:Array, train_prec_y:Array, y_mean:Array = np.zeros(1), y_std:Array = np.ones(1), y_test:Array = None):
-    m = gp_predictive_mean(gram_train_test, train_prec_y, y_mean, y_std)
-    cov = gp_predictive_cov(gram_train_test, gram_test, chol_train_cov = chol_train_cov, outp_std = y_std)
+    m = gp_predictive_mean_univ(gram_train_test, train_prec_y)
+    cov = gp_predictive_cov_univ_chol(gram_train_test, gram_test, chol_train_cov)
+    pred_m, pred_cov = scale_and_shift_dims(m, y_mean, y_std), scale_dims(cov, y_std**2)
     if y_test is None:
-        return m, cov
+        return pred_m, pred_cov
     else:
-        y_test = (y_test - y_mean) / y_std
-        return m, cov, mvgauss_loglhood_mean0(y_test - m, sp.linalg.cholesky(cov, lower=True))
+        y_test2 = scale_and_shift_dims_inv(y_test, y_mean, y_std) - m
+        cov_chol = sp.linalg.cholesky(cov, lower=True)
+        return pred_m, pred_cov, gp_loglhood_mean0(y_test2, cov_chol)
 
 def loglhood_loss(y_test:Array, pred_mean_y:Array, pred_cov_y:Array, loglhood_y:Array) -> float:
     return loglhood_y
@@ -195,14 +240,13 @@ class GP(object):
         return f"μ_Y = {self.ymean.squeeze()} ± σ_Y ={self.ystd.squeeze()}, σ_noise: {self.noise}, trace_chol: {self.chol.trace().squeeze()} trace_xx^t: {self.x_inner_x.trace().squeeze()}, {self.x_inner_x[0,:5]}, {self.x_inner_x.shape}"
 
     def marginal_loglhood(self):
-        return mvgauss_loglhood_mean0(self.y, self.chol, self.prec_y)
+        return gp_loglhood_mean0(self.y, self.chol, self.prec_y)
 
     def predict(self, xtest:FiniteVec, diag=True):
-        if not diag:
-            func = gp_predictive
-        else:
-            func = gp_predictive_mean_var
-        return func(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, self.ymean, self.ystd)
+        pred_m, pred_cov = gp_predictive(self.x.inner(xtest), xtest.inner(), self.chol, self.prec_y, self.ymean, self.ystd)
+        if diag:
+            return pred_m, np.diagonal(pred_cov).T
+        return pred_m, pred_cov
         
     
     def post_pred_likelihood(self, xtest:FiniteVec, ytest:Array):
