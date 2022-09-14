@@ -145,7 +145,10 @@ class FiniteVec(Vec):
     
     @classmethod
     def construct_RKHS_Elem(cls, kern, inspace_points, prefactors = None) -> "FiniteVec":
-        assert len(prefactors.squeeze().shape) == 1
+        if prefactors is None:
+            prefactors = np.ones(len(inspace_points))
+        else:
+            assert len(prefactors.squeeze().shape) == 1
         return FiniteVec(kern, inspace_points, [LinearReduce(prefactors.squeeze()[None, :])])
     
     @classmethod

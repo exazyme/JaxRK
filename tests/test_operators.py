@@ -1,5 +1,8 @@
 import copy
+import re
 from jaxrk.reduce.base import TileView
+from jaxrk.reduce.lincomb import LinearReduce
+from jaxrk.reduce.base import BalancedRed
 from jaxrk.rkhs.cov import Cov_regul
 from jaxrk.models.conditional_operator import RidgeCmo
 from operator import inv
@@ -10,7 +13,7 @@ import pytest
 from numpy.testing import assert_allclose
 from jax import random
 
-from jaxrk.rkhs import Cov_regul, CovOp, FiniteOp, FiniteVec, inner, CombVec 
+from jaxrk.rkhs import Cov_regul, CovOp, FiniteOp, FiniteVec, inner, CombVec, Cov_solve 
 from jaxrk.models.conditional_operator import Cdo, Cmo
 from jaxrk.kern import (SplitDimsKernel, PeriodicKernel, GenGaussKernel)
 from jaxrk.utilities.array_manipulation import all_combinations
@@ -35,7 +38,9 @@ def test_apply_matmul():
     
     x_e1 = FiniteVec.construct_RKHS_Elem(gk_x, x)
     x_e2 = FiniteVec.construct_RKHS_Elem(gk_x, y)
-    x_fv = FiniteVec(gk_x, np.vstack([x,y]), prefactors = np.hstack([x_e1.prefactors] * 2), points_per_split=x.size)
+    stacked_factors = np.hstack([x_e1.reduce[0].linear_map] * 2).squeeze()
+    diag_stacked_factors = np.diag(stacked_factors)
+    x_fv = FiniteVec(gk_x, np.vstack([x,y]), reduce=[LinearReduce(diag_stacked_factors), BalancedRed(x.size)])
 
     oper_feat_vec  = FiniteVec(gk_x, x)
 
@@ -43,31 +48,31 @@ def test_apply_matmul():
     res_e1 = oper @ x_e1
     res_e2 = (oper @ x_e2)
     res_v = (oper @ x_fv)
-    assert np.allclose(res_e1.prefactors, (oper.matr @ oper.inp_feat.inner(x_e1)).flatten()), "Application of operator to RKHS element failed."
-    assert np.allclose(res_v.insp_pts, np.vstack([res_e1.insp_pts, res_e2.insp_pts] )), "Application of operator to all vectors in RKHS vector failed at inspace points."
-    assert np.allclose(res_v.prefactors, np.hstack([res_e1.prefactors, res_e2.prefactors])), "Application of operator to all vectors in RKHS vector failed."
+    assert np.allclose(res_e1.reduce[0].linear_map, (oper.matr @ oper.inp_feat.inner(x_e1)).flatten()), "Application of operator to RKHS element failed."
+    assert np.allclose(res_v.insp_pts, res_e1.insp_pts ), "Application of operator to all vectors in RKHS vector failed at inspace points."
+    assert np.allclose(res_v.reduce[0].linear_map, np.vstack([res_e1.reduce[0].linear_map, res_e2.reduce[0].linear_map])), "Application of operator to all vectors in RKHS vector failed."
     assert np.allclose((oper @ oper).matr, oper.inp_feat.inner(oper.outp_feat)), "Application of operator to operator failed."
 
 def test_FiniteOp():
     gk_x = GenGaussKernel.make_gauss(0.1)
     x = np.linspace(-2.5, 15, 20)[:, np.newaxis].astype(np.float32)
     #x = np.random.randn(20, 1).astype(np.float)
-    ref_fvec = FiniteVec(gk_x, x, np.ones(len(x)))
+    ref_fvec = FiniteVec(gk_x, x)
     ref_elem = FiniteVec.construct_RKHS_Elem(gk_x, x, np.ones(len(x)))
 
     C1 = FiniteOp(ref_fvec, ref_fvec, np.linalg.inv(inner(ref_fvec)))
-    assert(np.allclose((C1 @ ref_elem).prefactors, 1.))
+    assert(np.allclose((C1 @ ref_elem).reduce[0].linear_map, 1.))
 
     C2 = FiniteOp(ref_fvec, ref_fvec, C1.matr@C1.matr)
-    assert(np.allclose((C2 @ ref_elem).prefactors, np.sum(C1.matr, 0)))
+    assert(np.allclose((C2 @ ref_elem).reduce[0].linear_map, np.sum(C1.matr, 0)))
 
     n_rvs = 50
-    rv_fvec = FiniteVec(gk_x, random.normal(rng, (n_rvs, 1)) * 5, np.ones(n_rvs))
+    rv_fvec = FiniteVec(gk_x, random.normal(rng, (n_rvs, 1)) * 5)
     C3 = FiniteOp(rv_fvec, rv_fvec, np.eye(n_rvs))
     assert np.allclose((C3 @ C1).matr, gk_x(rv_fvec.insp_pts, ref_fvec.insp_pts) @ C1.matr, 0.001, 0.001)
 
 
-def test_CovOp(plot = False, center = False):   
+def test_CovOp(plot = False):   
     from scipy.stats import multivariate_normal
 
     nsamps = 1000
@@ -81,22 +86,22 @@ def test_CovOp(plot = False, center = False):
 
     targ = mixt(D, [multivariate_normal(3*np.ones(D), np.eye(D)*0.7**2), multivariate_normal(7*np.ones(D), np.eye(D)*1.5**2)], [0.5, 0.5])
     out_samps = targ.rvs(nsamps).reshape([nsamps, 1]).astype(float)
-    out_fvec = FiniteVec(gk_x, out_samps, np.ones(nsamps), center = center)
+    out_fvec = FiniteVec(gk_x, out_samps, )
     out_meanemb = out_fvec.sum()
     
 
     x = np.linspace(-2.5, 15, samps_unif)[:, np.newaxis].astype(float)
-    ref_fvec = FiniteVec(gk_x, x, np.ones(len(x)), center = center)
+    ref_fvec = FiniteVec(gk_x, x)
     ref_elem = ref_fvec.sum()
 
-    C_ref = CovOp(ref_fvec, regul=0., center = center) # CovOp_compl(out_fvec.k, out_fvec.inspace_points, regul=0.)
+    C_ref = CovOp(ref_fvec) # CovOp_compl(out_fvec.k, out_fvec.inspace_points, regul=0.)
 
     inv_Gram_ref = np.linalg.inv(inner(ref_fvec))
 
-    C_samps = CovOp(out_fvec, regul=regul_C_ref, center = center)
-    unif_obj = C_samps.solve(out_meanemb).dens_proj()
-    C_ref = CovOp(ref_fvec, regul=regul_C_ref, center = center)
-    dens_obj = C_ref.solve(out_meanemb).dens_proj()
+    C_samps = CovOp(out_fvec)
+    unif_obj = Cov_solve(C_samps, out_meanemb, regul=regul_C_ref).dens_proj()
+    C_ref = CovOp(ref_fvec)
+    dens_obj = Cov_solve(C_ref, out_meanemb, regul=regul_C_ref).dens_proj()
     
 
 

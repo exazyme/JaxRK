@@ -9,7 +9,6 @@ from numpy.testing import assert_allclose
 from scipy.stats import norm, laplace, gennorm
 
 from jaxrk.kern import GenGaussKernel, SplitDimsKernel
-from jaxrk.rkhs import (Cdo, Cmo, CombVec, CovOp, inner)
 from jaxrk.utilities.array_manipulation import all_combinations
 
 def test_rbf():

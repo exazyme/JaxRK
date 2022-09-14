@@ -5,16 +5,17 @@ import numpy as np
 from numpy.testing import assert_allclose
 
 
-from jaxrk.rkhs import FiniteVec, inner, SpVec
-from jaxrk.kern import GaussianKernel 
-from jaxrk.reduce import Prefactors, BalancedSum, LinearReduce
+from jaxrk.rkhs import FiniteVec, inner
+from jaxrk.kern import GenGaussKernel 
+from jaxrk.reduce import Prefactors, LinearReduce, BalancedRed
 
 rng = np.random.RandomState(1)
+import pytest
 
 
 
 kernel_setups = [
-    GaussianKernel()
+    GenGaussKernel.make_gauss(1.0)
 ] 
 
 
@@ -31,14 +32,14 @@ def test_FiniteVec(D, kernel, N):
     N = 4
     X = rng.randn(N, D)
 
-    rv = FiniteVec(kernel, X, [Prefactors(np.ones(len(X))/2), BalancedSum(2)])
+    rv = FiniteVec(kernel, X, [Prefactors(np.ones(len(X))/2), BalancedRed(2)])
     el = FiniteVec.construct_RKHS_Elem(kernel, X, np.ones(N))
     gram = el.k(el.insp_pts)
     assert np.allclose(inner(el, el), np.sum(gram))
     assert np.allclose(np.squeeze(inner(el, rv)), np.sum(gram, 1).reshape(-1,2).mean(1))
 
 
-    rv = FiniteVec(kernel, X, [Prefactors(np.ones(len(X))/2), BalancedSum(2)])
+    rv = FiniteVec(kernel, X, [Prefactors(np.ones(len(X))/2), BalancedRed(2)])
     assert np.allclose(inner(rv, rv), np.array([[np.mean(rv.k(X[:2,:])), np.mean(rv.k(X[:2,:], X[2:,:]))],
                                                [np.mean(rv.k(X[:2,:], X[2:,:])), np.mean(rv.k(X[2:,:]))]])), "Balanced vector computation not accurate"
     

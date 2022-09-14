@@ -162,6 +162,11 @@ class Sum(Reduce):
     def new_len(self, original_len:int) -> int:
         return 1
 
+#    def linearize(self, gram_shape: tuple) -> np.array:
+#        # sum
+#        return np.ones((1, gram_shape[0]))
+    
+
 class Mean(Reduce):
     def __call__(self, inp:Array, axis:int = 0) -> np.array:
         return np.mean(inp, axis = axis, keepdims = True)
@@ -171,6 +176,10 @@ class Mean(Reduce):
     
     def new_len(self, original_len:int) -> int:
         return 1
+    
+#    def linearize(self, gram_shape: tuple) -> np.array:
+#        # mean
+#        return np.ones((gram_shape[0], gram_shape[0])) / gram_shape[1]
 
 class BalancedRed(Reduce):
     """Sum up even number of elements in input."""

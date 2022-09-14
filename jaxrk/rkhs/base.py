@@ -15,15 +15,15 @@ class Vec(Sized, ABC):
 InpVecT = TypeVar("InpVecT", bound=Vec)
 OutVecT = TypeVar("OutVecT", bound=Vec)
 
-#The following is input to a map RhInpVectT -> InpVecT
+# The following is input to a map RhInpVectT -> InpVecT
 RhInpVectT = TypeVar("RhInpVectT", bound=Vec) 
 
 CombT = TypeVar("CombT", "LinOp[RhInpVectT, InpVecT]", InpVecT, Array)
 
 
-class LinOp(Vec, Generic[InpVecT, OutVecT], ABC):
+class LinOp(Vec, Generic[InpVecT, OutVecT], ABC): 
     @abstractmethod
-    def __matmul__(self, right_inp:CombT) -> Union[OutVecT, "LinOp[RhInpVectT, OutVecT]"]:
+    def __matmul__(self, right_inp: CombT) -> Union[OutVecT, "LinOp[RhInpVectT, OutVecT]"]:
         pass
 
 RkhsObject = Union[Vec, LinOp]
