@@ -16,19 +16,26 @@ from .base import LinOp, RkhsObject, Vec, InpVecT, OutVecT, RhInpVectT, CombT
 
 class FiniteOp(LinOp[InpVecT, OutVecT]):
     """Finite rank LinOp in RKHS"""
-    
-    def __init__(self, inp_feat:InpVecT, outp_feat:OutVecT, matr:Array = None, normalize:bool = False):
+
+    def __init__(
+            self,
+            inp_feat: InpVecT,
+            outp_feat: OutVecT,
+            matr: Array = None,
+            normalize: bool = False):
         super().__init__()
         if matr is not None:
             assert matr.shape == (len(outp_feat), len(inp_feat))
-        self.matr = matr        
+        self.matr = matr
         self.inp_feat, self.outp_feat = inp_feat, outp_feat
         self._normalize = normalize
 
     def __len__(self):
         return len(self.inp_feat) * len(self.outp_feat)
 
-    def __matmul__(self, right_inp:CombT) -> Union[OutVecT, "FiniteOp[RhInpVectT, OutVecT]"]:
+    def __matmul__(self,
+                   right_inp: CombT) -> Union[OutVecT,
+                                              "FiniteOp[RhInpVectT, OutVecT]"]:
         if isinstance(right_inp, FiniteOp):
             # right_inp is an operator
             # Op1 @ Op2
@@ -38,35 +45,40 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
             return FiniteOp(right_inp.inp_feat, self.outp_feat, matr)
         else:
             if isinstance(right_inp, DeviceArray):
-                right_inp = FiniteVec(self.inp_feat.k, np.atleast_2d(right_inp))
+                right_inp = FiniteVec(
+                    self.inp_feat.k, np.atleast_2d(right_inp))
             # right_inp is a vector
-            # Op @ vec 
+            # Op @ vec
             right_gram = inner(self.inp_feat, right_inp)
-            
+
             if self.matr is not None:
                 right_gram = self.matr @ right_gram
             if self._normalize:
-                right_gram = right_gram / right_gram.sum(1, keepdims = True)
+                right_gram = right_gram / right_gram.sum(1, keepdims=True)
             lr = LinearReduce(right_gram.T)
             if len(right_inp) != 1:
                 return self.outp_feat.extend_reduce([lr])
             else:
-                return self.outp_feat.extend_reduce([lr, Sum()])    
+                return self.outp_feat.extend_reduce([lr, Sum()])
 
-    def reduce_gram(self, gram, axis = 0):
+    def reduce_gram(self, gram, axis=0):
         return gram
-    
+
     @property
     def T(self) -> "FiniteOp[OutVecT, InpVecT]":
-        return FiniteOp(self.outp_feat, self.inp_feat, self.matr.T, self._normalize)
+        return FiniteOp(
+            self.outp_feat,
+            self.inp_feat,
+            self.matr.T,
+            self._normalize)
 
-    def __call__(self, inp:DeviceArray) -> RkhsObject:
+    def __call__(self, inp: DeviceArray) -> RkhsObject:
         return self @ FiniteVec(self.inp_feat.k, np.atleast_2d(inp))
-    
-    def apply(self, inp:CombT) -> RkhsObject:
+
+    def apply(self, inp: CombT) -> RkhsObject:
         return self @ inp
 
-    def inner(self, Y:"FiniteOp[InpVecT, OutVecT]"=None, full=True):
+    def inner(self, Y: "FiniteOp[InpVecT, OutVecT]" = None, full=True):
         assert NotImplementedError("This implementation has to be tested")
         if Y is None:
             Y = self
@@ -80,9 +92,10 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
             return np.sum((G_o @ Y.matr @ G_i.T) * self.matr)
 
         # is the kronecker product taken the right way around or do self and Y have to switch plaches?
-        #return self.reduce_gram(Y.reduce_gram(G_i.T.reshape(1, -1) @ np.kron(self.matr, Y.matr) @ G_o.reshape(1, -1), 1), 0)
+        # return self.reduce_gram(Y.reduce_gram(G_i.T.reshape(1, -1) @
+        # np.kron(self.matr, Y.matr) @ G_o.reshape(1, -1), 1), 0)
 
-""" 
+
+"""
 class FiniteOpVec(object):
     def __init__(self, inp_feat:InpVecT, outp_feat:OutVecT, matr:Array = None) """
-

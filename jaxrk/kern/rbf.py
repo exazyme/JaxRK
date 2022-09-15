@@ -20,69 +20,79 @@ from ..kern.base import DensityKernel, Kernel
 from ..kern.util import ScaledPairwiseDistance, SimpleScaler
 
 
-class GenGaussKernel(DensityKernel): #this is the gennorm distribution from scipy
-    """Kernel derived from the pdf of the generalized Gaussian distribution (https://en.wikipedia.org/wiki/Generalized_normal_distribution#Version_1). """    
+class GenGaussKernel(
+        DensityKernel):  # this is the gennorm distribution from scipy
+    """Kernel derived from the pdf of the generalized Gaussian distribution (https://en.wikipedia.org/wiki/Generalized_normal_distribution#Version_1). """
 
-
-    def __init__(self, dist:ScaledPairwiseDistance):
+    def __init__(self, dist: ScaledPairwiseDistance):
         super().__init__()
         self.dist = dist
-        self.nconst = self.dist.power / (2 * self.dist._get_scale_param() * np.exp(sp.special.gammaln(1. / self.dist.power)))
+        self.nconst = self.dist.power / \
+            (2 * self.dist._get_scale_param() * np.exp(sp.special.gammaln(1. / self.dist.power)))
 
     def __str__(self) -> str:
         return f"GenGaussKernel({self.dist})"
-        
+
     @classmethod
-    def make_unconstr(cls,
-                      unconstr_scale:Array,
-                      unconstr_shape:float,
-                      scale_bij: Bijection = NonnegToLowerBd(),
-                      shape_bij: Bijection = SquashingToBounded(0., 2.)) -> "GenGaussKernel":
+    def make_unconstr(
+        cls,
+        unconstr_scale: Array,
+        unconstr_shape: float,
+        scale_bij: Bijection = NonnegToLowerBd(),
+        shape_bij: Bijection = SquashingToBounded(
+            0.,
+            2.)) -> "GenGaussKernel":
         """Factory for constructing a GenGaussKernel from unconstrained parameters.
            The constraints for each parameters are then guaranteed by applying their accompanying bijections.
             Args:
-                scale (Array): Scale parameter, unconstrained. 
-                shape (float): Shape parameter, unconstrained. Lower values result in pointier kernel functions. 
+                scale (Array): Scale parameter, unconstrained.
+                shape (float): Shape parameter, unconstrained. Lower values result in pointier kernel functions.
                 scale_bij (Bijection): Bijection mapping from unconstrained real numbers to non-negative numbers. Defaults to SoftPlus.
                 shape_bij (Bijection): Bijection mapping from unconstrained real numbers to half-open interval (0,2]. Defaults to Sigmoid(0., 2.).
         """
         return cls.make(scale_bij(unconstr_scale), shape_bij(unconstr_shape))
 
     @classmethod
-    def init_from_constrained(cls,
-                              constr_scale:Array,
-                              constr_shape:float,
-                              scale_bij: Bijection = NonnegToLowerBd(),
-                              shape_bij: Bijection = SquashingToBounded(0., 2.)):
+    def init_from_constrained(
+        cls,
+        constr_scale: Array,
+        constr_shape: float,
+        scale_bij: Bijection = NonnegToLowerBd(),
+        shape_bij: Bijection = SquashingToBounded(
+            0.,
+            2.)):
         """Return unconstrained init values from parameters by applying the inverse of the bijection
            that belongs to the parameter."""
         return scale_bij.inv(constr_scale), shape_bij.inv(constr_shape)
 
     @classmethod
     def make(cls,
-             length_scale:Array,
-             shape:float) -> "GenGaussKernel":
+             length_scale: Array,
+             shape: float) -> "GenGaussKernel":
         """Factory for constructing a GenGaussKernel from scale and shape parameters.
             Args:
                 scale (Array): Scale parameter, nonnegative.
                 shape (float): Shape parameter, in half-open interval (0,2]. Lower values result in pointier kernel functions. Shape == 2 results in usual Gaussian kernel, shape == 1 results in Laplace kernel.
         """
         assert shape > 0 and shape <= 2
-        dist = ScaledPairwiseDistance(scaler = SimpleScaler(1./length_scale), power = shape)
+        dist = ScaledPairwiseDistance(
+            scaler=SimpleScaler(
+                1. / length_scale),
+            power=shape)
         return GenGaussKernel(dist)
-    
+
     @classmethod
     def make_laplace(cls,
-             length_scale:Array) -> "GenGaussKernel":
+                     length_scale: Array) -> "GenGaussKernel":
         """Factory for constructing a Laplace kernel from scale parameter.
             Args:
                 scale (Array): Scale parameter, nonnegative.
         """
         return GenGaussKernel.make(length_scale, 1.)
-    
+
     @classmethod
     def make_gauss(cls,
-             length_scale:Array) -> "GenGaussKernel":
+                   length_scale: Array) -> "GenGaussKernel":
         """Factory for constructing a Laplace kernel from scale parameter.
             Args:
                 scale (Array): Scale parameter, nonnegative.
@@ -90,22 +100,23 @@ class GenGaussKernel(DensityKernel): #this is the gennorm distribution from scip
         #f = sp.special.gammaln(np.array([3, 1]) / 2)
         #f = np.exp((f[0] - f[1]) / 2)
         f = 0.70710695
-        
-        return GenGaussKernel.make(length_scale/f, 2.)
+
+        return GenGaussKernel.make(length_scale / f, 2.)
 
     def std(self):
         return np.sqrt(self.var())
-    
+
     def var(self):
         f = sp.special.gammaln(np.array([3, 1]) / self.dist.power)
         return self.dist._get_scale_param()**2 * np.exp(f[0] - f[1])
 
-    def __call__(self, X, Y=None, diag = False,):
+    def __call__(self, X, Y=None, diag=False,):
         return self.nconst * exp(-self.dist(X, Y, diag))
+
 
 class PeriodicKernel(Kernel):
 
-    def __init__(self, period:Union[float, Array], length_scale:float):
+    def __init__(self, period: Union[float, Array], length_scale: float):
         """Periodic kernel class. A periodic kernel is defined by
             exp(-2 * (sin(dist(X, Y, diag)) / length_scale)**power)
 
@@ -115,15 +126,17 @@ class PeriodicKernel(Kernel):
         """
         super().__init__()
         assert period > 0 and length_scale > 0
-        self.dist = ScaledPairwiseDistance(scaler = SimpleScaler(1./period), power = 1.)
+        self.dist = ScaledPairwiseDistance(
+            scaler=SimpleScaler(1. / period), power=1.)
         self.ls = length_scale
-    
+
     @classmethod
-    def make_unconstr(cls,
-                      unconstr_period:float,
-                      unconstr_length_scale:float,
-                      period_bij: Bijection = NonnegToLowerBd(),
-                      length_scale_bij: Bijection = NonnegToLowerBd()) -> "PeriodicKernel":
+    def make_unconstr(
+            cls,
+            unconstr_period: float,
+            unconstr_length_scale: float,
+            period_bij: Bijection = NonnegToLowerBd(),
+            length_scale_bij: Bijection = NonnegToLowerBd()) -> "PeriodicKernel":
         """Factory for constructing a PeriodicKernel from unconstrained parameters.
            The constraints for each parameters are then guaranteed by applying their accompanying bijections.
             Args:
@@ -135,29 +148,36 @@ class PeriodicKernel(Kernel):
         Returns:
             PeriodicKernel: The constructed kernel.
         """
-        return cls(period_bij(unconstr_period), length_scale_bij(unconstr_length_scale))
-    
+        return cls(period_bij(unconstr_period),
+                   length_scale_bij(unconstr_length_scale))
+
     @classmethod
     def init_from_constrained(cls,
-                              constr_period:float,
-                              constr_length_scale:float,
+                              constr_period: float,
+                              constr_length_scale: float,
                               period_bij: Bijection = NonnegToLowerBd(),
                               length_scale_bij: Bijection = NonnegToLowerBd()):
         """Return unconstrained init values from parameters by applying the inverse of the bijection
            that belongs to the parameter."""
-        return period_bij.inv(constr_period), length_scale_bij.inv(constr_length_scale)
-    
+        return period_bij.inv(constr_period), length_scale_bij.inv(
+            constr_length_scale)
 
-    def __call__(self, X, Y=None, diag = False,):
+    def __call__(self, X, Y=None, diag=False,):
         d = self.dist(X, Y, diag)
-        return exp(- 2* (np.sin(np.pi*d) / self.ls)**2.)
+        return exp(- 2 * (np.sin(np.pi * d) / self.ls)**2.)
+
 
 class ThreshSpikeKernel(Kernel):
-    def __init__(self,  dist:ScaledPairwiseDistance, spike:float, non_spike:float, threshold:float):
+    def __init__(
+            self,
+            dist: ScaledPairwiseDistance,
+            spike: float,
+            non_spike: float,
+            threshold: float):
         """Takes on spike value if squared euclidean distance is below a certain threshold, else non_spike value
 
         Args:
-            spike (float): Kernel value when distance between input points is below threshold_distance, nonnegative. 
+            spike (float): Kernel value when distance between input points is below threshold_distance, nonnegative.
             non_spike (float): Kernel value when distance between input points is above threshold_distance. Has to satisfy abs(non_spike) < spike.
             threshold_distance (float): Distance threshold.
     """
@@ -167,24 +187,27 @@ class ThreshSpikeKernel(Kernel):
         assert threshold >= 0
         self.dist = dist
         self.spike, self.non_spike, self.threshold = spike, non_spike, threshold
-    
+
     @classmethod
-    def make_unconstr(cls,
-             length_scale:Array,
-             shape:float,
-             spike:float,
-             non_spike:float,
-             threshold:float,
-             scale_bij: Bijection = NonnegToLowerBd(),
-             shape_bij: Bijection = NonnegToLowerBd(),
-             spike_bij: Bijection = NonnegToLowerBd(),
-             non_spike_bij: Bijection = SoftBound(u = 1.),
-             threshold_bij: Bijection = SoftBound(l = 0.)) -> "ThreshSpikeKernel":
+    def make_unconstr(
+        cls,
+        length_scale: Array,
+        shape: float,
+        spike: float,
+        non_spike: float,
+        threshold: float,
+        scale_bij: Bijection = NonnegToLowerBd(),
+        shape_bij: Bijection = NonnegToLowerBd(),
+        spike_bij: Bijection = NonnegToLowerBd(),
+        non_spike_bij: Bijection = SoftBound(
+            u=1.),
+        threshold_bij: Bijection = SoftBound(
+            l=0.)) -> "ThreshSpikeKernel":
         """Factory for constructing a PeriodicKernel from unconstrained parameters.
             Args:
                 scale (Array): Scale parameter for distance computation.
-                shape (float): Shape parameter for distance computation. 
-                spike (float): Kernel value when distance between input points is above threshold_distance. 
+                shape (float): Shape parameter for distance computation.
+                spike (float): Kernel value when distance between input points is above threshold_distance.
                 non_spike (float): Non-spike value, has to satisfy abs(non_spike) < spike
                 threshold (float): Below theshold
                 scale_bij (Bijection): Bijection mapping from unconstrained real numbers to non-negative numbers. Defaults to SoftPlus.
@@ -195,11 +218,23 @@ class ThreshSpikeKernel(Kernel):
             Returns:
                 ThreshSpikeKernel: Distance threshold
         """
-        dist = ScaledPairwiseDistance(scaler = SimpleScaler(1./scale_bij(length_scale)), power = shape_bij(shape))
-        return cls(dist, spike_bij(spike), non_spike_bij(non_spike), threshold_bij(threshold))
-        
+        dist = ScaledPairwiseDistance(
+            scaler=SimpleScaler(
+                1. / scale_bij(length_scale)),
+            power=shape_bij(shape))
+        return cls(
+            dist,
+            spike_bij(spike),
+            non_spike_bij(non_spike),
+            threshold_bij(threshold))
 
-    def __call__(self, X, Y=None, diag = False):
-        assert(len(np.shape(X))==2)
+    def __call__(self, X, Y=None, diag=False):
+        assert (len(np.shape(X)) == 2)
         assert not diag
-        return np.where(self.dist(X,Y, diag) <= self.threshold, self.spike, self.non_spike)
+        return np.where(
+            self.dist(
+                X,
+                Y,
+                diag) <= self.threshold,
+            self.spike,
+            self.non_spike)

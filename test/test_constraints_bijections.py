@@ -1,7 +1,8 @@
 import jax.numpy as np
 from jaxrk.core.constraints import SoftBound, CholeskyBijection
 
-def test_simple_bijections(atol = 1e-2):
+
+def test_simple_bijections(atol=1e-2):
     for lb in (-0.4, 5.):
         for ub in (5.5, 6.):
             assert lb < ub
@@ -21,12 +22,15 @@ def test_simple_bijections(atol = 1e-2):
 
             assert np.all(lux > lb) and np.all(lux < ub)
             assert np.abs(lux[0] - lb) < 0.2 and np.abs(lux[-1] - ub) < 0.2
-            for i, n in [(l.inv(lx), "lower"), (lu.inv(lux), "lower & upper"), (u.inv(ux), "upper")]:
-                assert np.abs(i-x).mean() < atol, f"Inverse of {n} bound Bijection is inaccurate(max abs error: {np.abs(x-i).max()}, mean abs error: {np.abs(x-i).mean()}, min abs error: {np.abs(x-i).min()})"
+            for i, n in [(l.inv(lx), "lower"), (lu.inv(lux),
+                                                "lower & upper"), (u.inv(ux), "upper")]:
+                assert np.abs(
+                    i - x).mean() < atol, f"Inverse of {n} bound Bijection is inaccurate(max abs error: {np.abs(x-i).max()}, mean abs error: {np.abs(x-i).mean()}, min abs error: {np.abs(x-i).min()})"
+
 
 def test_cholesky_bijection():
     cb = CholeskyBijection()
-    psd = -np.ones((3,3)) + 0.7 + np.eye(3)
+    psd = -np.ones((3, 3)) + 0.7 + np.eye(3)
     chol = np.linalg.cholesky(psd)
     param = cb.psd_to_param(psd)
     assert cb.is_chol(cb.param_to_chol(param))
@@ -34,4 +38,3 @@ def test_cholesky_bijection():
     assert cb.is_param(cb.chol_to_param(chol))
     assert np.allclose(cb.param_to_chol(param), chol)
     assert np.allclose(cb(param), psd)
-

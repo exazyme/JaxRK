@@ -7,30 +7,34 @@ from ..core.constraints import NonnegToLowerBd
 from ..core.typing import *
 from ..utilities.distances import dist
 
+
 class Scaler(ABC):
     @abstractmethod
     def __call__(self, inp):
         raise NotImplementedError()
-    
+
     @abstractmethod
     def inv(self):
         raise NotImplementedError()
-    
+
     @abstractmethod
     def scale(self):
         raise NotImplementedError()
+
+
 class NoScaler(Scaler):
     def __call__(self, inp):
         return inp
-    
+
     def inv(self):
         return np.ones(1)
-    
+
     def scale(self):
         return np.ones(1)
 
+
 class SimpleScaler(Scaler):
-    def __init__(self, scale:Union[Array, float]):
+    def __init__(self, scale: Union[Array, float]):
         """Scale input either by global scale parameter or by per-dimension scaling parameters
 
         Args:
@@ -47,17 +51,20 @@ class SimpleScaler(Scaler):
                 assert (len(scale.shape) == 2 and scale.shape[0] == 1)
         assert np.all(scale > 0.)
         self.s = scale
-    
+
     @classmethod
-    def make_unconstr(cls, scale:Union[Array, float], bij: Bijection = NonnegToLowerBd()) -> "SimpleScaler":
+    def make_unconstr(cls,
+                      scale: Union[Array,
+                                   float],
+                      bij: Bijection = NonnegToLowerBd()) -> "SimpleScaler":
         return SimpleScaler(bij(scale))
-    
+
     def __str__(self) -> str:
         return f"SimpleScaler({self.s})"
 
     def inv(self):
-        return 1./self.s
-    
+        return 1. / self.s
+
     def scale(self):
         return self.s
 
@@ -65,10 +72,11 @@ class SimpleScaler(Scaler):
         if inp is None:
             return None
         # either global scaling, meaning self.scale().size == 1,
-        # or local scaling, in which case inp.shape[1] == 
+        # or local scaling, in which case inp.shape[1] ==
         assert self.scale().size == 1 or self.scale().size == inp.shape[1]
 
         return self.s * inp
+
 
 class ScaledPairwiseDistance:
     """A class for computing scaled pairwise distance for stationary/RBF kernels, depending only on
@@ -78,10 +86,9 @@ class ScaledPairwiseDistance:
     For some power p.
     """
 
-
     def __init__(self,
-                 scaler:Scaler = NoScaler(),
-                 power:float = 2.):
+                 scaler: Scaler = NoScaler(),
+                 power: float = 2.):
         """Compute scaled pairwise distance, given by
             |X_i-Y_j|^p for all i, j
 
@@ -99,7 +106,7 @@ class ScaledPairwiseDistance:
             self.gs = NoScaler()
             self.ds = scaler
             self.is_global = False
-    
+
     def __str__(self) -> str:
         return f"ScaledPairwiseDistance(scaler={self.gs if self.is_global else self.ds}, power={self.power})"
 
@@ -107,15 +114,24 @@ class ScaledPairwiseDistance:
         if self.is_global:
             return self.gs.inv()
         else:
-            return self.ds.inv()**(1./self.power)
+            return self.ds.inv()**(1. / self.power)
 
-    def __call__(self, X, Y=None, diag = False,):
+    def __call__(self, X, Y=None, diag=False,):
         if diag:
             if Y is None:
                 rval = np.zeros(X.shape[0])
             else:
-                assert(X.shape == Y.shape)
-                rval = self.gs(np.sum(np.abs(self.ds(X) - self.ds(Y))**self.power, 1))
+                assert (X.shape == Y.shape)
+                rval = self.gs(
+                    np.sum(
+                        np.abs(
+                            self.ds(X) -
+                            self.ds(Y))**self.power,
+                        1))
         else:
-            rval = self.gs(dist(self.ds(X), self.ds(Y), power = 1.)) ** self.power
+            rval = self.gs(
+                dist(
+                    self.ds(X),
+                    self.ds(Y),
+                    power=1.)) ** self.power
         return rval

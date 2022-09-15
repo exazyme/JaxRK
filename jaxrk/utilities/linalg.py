@@ -3,7 +3,7 @@ import jax.numpy as np
 import numpy.random as random
 
 
-def block_matrix(UL:Array, UR:Array, LL:Array, LR:Array) -> Array:
+def block_matrix(UL: Array, UR: Array, LL: Array, LR: Array) -> Array:
     """Correctly stack a block matrix from its parts.
 
     Args:
@@ -17,7 +17,8 @@ def block_matrix(UL:Array, UR:Array, LL:Array, LR:Array) -> Array:
     """
     return np.vstack([np.hstack([UL, UR]), np.hstack([LL, LR])])
 
-def augment_gram(G_old:Array, G_old_new:Array, G_new:Array)-> Array:
+
+def augment_gram(G_old: Array, G_old_new: Array, G_new: Array) -> Array:
     """Correctly stack a gram matrix from its parts of old and new kernel evaluations.
 
     Args:
@@ -30,7 +31,13 @@ def augment_gram(G_old:Array, G_old_new:Array, G_new:Array)-> Array:
     """
     return block_matrix(G_old, G_old_new, G_old_new.T, G_new)
 
-def inv_blockmatr(P:Array, P_inv:Array, Q:Array, R:Array, S:Array) -> Array:
+
+def inv_blockmatr(
+        P: Array,
+        P_inv: Array,
+        Q: Array,
+        R: Array,
+        S: Array) -> Array:
     """Given P and P^{-1}, compute the inverse of the block-partitioned matrix
     P Q
     R S
@@ -50,7 +57,7 @@ def inv_blockmatr(P:Array, P_inv:Array, Q:Array, R:Array, S:Array) -> Array:
     R_ = -S_ @ R @ P_inv
     Q_ = -P_inv @ Q @ S_
     P_ = P_inv + P_inv @ Q @ S_ @ R @ P_inv
-    
+
     return np.vstack([np.hstack([P_, Q_]), np.hstack([R_, S_])])
 
 # FIXME: implement Cholesky up/downdates: see

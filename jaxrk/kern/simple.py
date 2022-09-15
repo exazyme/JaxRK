@@ -4,7 +4,9 @@ from ..core.typing import PRNGKeyT, Shape, Dtype, Array
 from functools import partial
 
 import numpy as onp
-import jax.numpy as np, jax.scipy as sp, jax.scipy.stats as stats
+import jax.numpy as np
+import jax.scipy as sp
+import jax.scipy.stats as stats
 from jax.numpy import exp, log, sqrt
 from jax.scipy.special import logsumexp
 from scipy.optimize import minimize
@@ -14,17 +16,18 @@ from ..kern.base import Kernel
 from ..core.constraints import NonnegToLowerBd, Bijection, CholeskyBijection
 from ..utilities.views import tile_view
 
+
 class FeatMapKernel(Kernel):
-    def __init__(self, feat_map:Callable[[Array], Array] = None):
+    def __init__(self, feat_map: Callable[[Array], Array] = None):
         """A kernel that is defined by a feature map.
-        
+
         Args:
             feat_map: A callable that computes the feature map, i.e. given input space points it returns real valued features, one per input space point."""
 
         assert feat_map is not None
         self.feat_map = feat_map
 
-    def __call__(self, X, Y = None, diag = False):
+    def __call__(self, X, Y=None, diag=False):
         f_X = self.feat_map(X)
         if Y is None:
             f_Y = f_X
@@ -36,7 +39,8 @@ class FeatMapKernel(Kernel):
             return f_X.dot(f_Y.T)
 
 
-LinearKernel = partial(FeatMapKernel, feat_map = lambda x:x)
+LinearKernel = partial(FeatMapKernel, feat_map=lambda x: x)
+
 
 class DictKernel(Kernel):
     """Kernel for a fixed dictionary of input space values and accompanying gram values. Example:
@@ -52,11 +56,16 @@ class DictKernel(Kernel):
             cholesky_lower: A square lower cholesky factor.
     """
 
-    def __init__(self, inspace_vals:Array, gram_values:Array = None, cholesky_lower:Array = None, drop_neg_gram = True):
+    def __init__(
+            self,
+            inspace_vals: Array,
+            gram_values: Array = None,
+            cholesky_lower: Array = None,
+            drop_neg_gram=True):
         super().__init__()
-        
+
         assert gram_values != cholesky_lower, "Exactly one of gram_values and cholesky_lower has to be defined."
-            
+
         if gram_values is None:
             assert cholesky_lower is not None, "Exactly one of gram_values and cholesky_lower has to be defined."
             assert len(cholesky_lower.shape) == 2
@@ -67,8 +76,7 @@ class DictKernel(Kernel):
             assert cholesky_lower is None, "Exactly one of gram_values and cholesky_lower has to be defined."
             assert len(gram_values.shape) == 2
             assert gram_values.shape[0] == gram_values.shape[1]
-            
-        
+
         nonneg = onp.array(np.diag(gram_values) > 0)
         if not drop_neg_gram:
             assert nonneg.sum() == nonneg.size, "gram_values is not a PSD matrix and drop_neg_gram is False. Provide a PSD matrix or set drop_neg_gram to True."
@@ -78,10 +86,11 @@ class DictKernel(Kernel):
         self.gram_values = gram_values
         self.inspace_vals = inspace_vals
 
-        
-
     @classmethod
-    def make_unconstr(cls, cholesky_lower:Array, diag_bij:Bijection = NonnegToLowerBd(0.1)) -> "DictKernel":
+    def make_unconstr(
+            cls,
+            cholesky_lower: Array,
+            diag_bij: Bijection = NonnegToLowerBd(0.1)) -> "DictKernel":
         """Make a DictKernel from unconstrained parameters.
 
         Args:
@@ -91,20 +100,22 @@ class DictKernel(Kernel):
         Returns:
             DictKernel: The constructed kernel.
         """
-        chol_bij = CholeskyBijection(diag_bij = diag_bij)
+        chol_bij = CholeskyBijection(diag_bij=diag_bij)
         return cls(gram_values=chol_bij(cholesky_lower))
-    
 
-    def __call__(self, idx_X, idx_Y=None, diag = False):
-        assert (len(np.shape(idx_X))==2) and (idx_Y is None or len(np.shape(idx_Y))==2)
-        assert idx_X.shape[1] == 1 and (idx_Y is None or idx_X.shape[1] == idx_Y.shape[1])
+    def __call__(self, idx_X, idx_Y=None, diag=False):
+        assert (len(np.shape(idx_X)) == 2) and (
+            idx_Y is None or len(np.shape(idx_Y)) == 2)
+        assert idx_X.shape[1] == 1 and (
+            idx_Y is None or idx_X.shape[1] == idx_Y.shape[1])
         if idx_Y is None:
             idx_Y = idx_X
         if diag:
             return self.gram_values[idx_X, idx_Y]
         else:
             #FIXME: repeat_view
-            #using https://stackoverflow.com/questions/5564098/repeat-numpy-array-without-replicating-data
-            #and https://github.com/google/jax/issues/3171
-            #as starting points
-            return self.gram_values[np.repeat(idx_X, idx_Y.size).squeeze(), tile_view(idx_Y, idx_X.size).squeeze()].reshape((idx_X.size, idx_Y.size))
+            # using https://stackoverflow.com/questions/5564098/repeat-numpy-array-without-replicating-data
+            # and https://github.com/google/jax/issues/3171
+            # as starting points
+            return self.gram_values[np.repeat(idx_X, idx_Y.size).squeeze(), tile_view(
+                idx_Y, idx_X.size).squeeze()].reshape((idx_X.size, idx_Y.size))

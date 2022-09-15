@@ -1,7 +1,16 @@
 import jax.numpy as np
 from typing import Any, Tuple, Callable, Union, TypeVar
 
-__all__ = ["Bijection", "PRNGKeyT", "Shape", "Dtype", "Array", "InitFn", "ConstOrInitFn", "FloatOrInitFn", "AnyOrInitFn"]
+__all__ = [
+    "Bijection",
+    "PRNGKeyT",
+    "Shape",
+    "Dtype",
+    "Array",
+    "InitFn",
+    "ConstOrInitFn",
+    "FloatOrInitFn",
+    "AnyOrInitFn"]
 
 
 PRNGKeyT = Any
@@ -20,8 +29,8 @@ ArrayOrFloatT = TypeVar("ArrayOrFloatT", np.ndarray, float)
 
 
 class Bijection(object):
-    def __call__(self, x:ArrayOrFloatT) -> ArrayOrFloatT:
+    def __call__(self, x: ArrayOrFloatT) -> ArrayOrFloatT:
         raise NotImplementedError
-        
-    def inv(self, y:ArrayOrFloatT) -> ArrayOrFloatT:
+
+    def inv(self, y: ArrayOrFloatT) -> ArrayOrFloatT:
         raise NotImplementedError
