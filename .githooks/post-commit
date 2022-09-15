@@ -1,0 +1,5 @@
+#!/bin/sh
+CODE_HEALTH_DIR=code_health
+
+pytest --html=$CODE_HEALTH_DIR/test_report.html --self-contained-html --cov --cov-report=html:$CODE_HEALTH_DIR/test_coverage test
+interrogate -o $CODE_HEALTH_DIR/docstring_coverage.txt -v jaxrk

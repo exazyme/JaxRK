@@ -21,7 +21,7 @@ $ pip install -e .
 $ pytest test/
 ```
 will install the package into your python path. Changes to files in the directory are reflected in the python package when loaded.
-If you want to send pull requests, use autopep8 for ensuring the correct style (install using `pip install autopep8`). We use the parameters `autopep8 --in-place -a -a`
+If you want to send pull requests, use autopep8 for ensuring the correct style (install using `pip install autopep8`). We use the parameters `autopep8 --in-place -a -a`.
 
 To register our git hooks, in the repository root execute
 ```
