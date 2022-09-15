@@ -18,6 +18,12 @@ For some examples of what you can do with JaxRK, see [examples/Quick_start.ipynb
 To help in developing JaxRK, clone the github repo and change to the cloned directory on the command line. Then 
 ```
 $ pip install -e .
-$ pytest tests/
+$ pytest test/
 ```
 will install the package into your python path. Changes to files in the directory are reflected in the python package when loaded.
+If you want to send pull requests, use autopep8 for ensuring the correct style (install using `pip install autopep8`). We use the parameters `autopep8 --in-place -a -a`
+
+To register our git hooks, in the repository root execute
+```
+$ git config --local core.hooksPath .githooks/
+```
