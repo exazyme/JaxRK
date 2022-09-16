@@ -1,5 +1,58 @@
 #!/bin/sh
-CODE_HEALTH_DIR=code_health
+# This hook is called after a commit is made.
+# It 
+#   * runs pytest tests including estimation of test coverage
+#   * runs interrograte to check docstring coverage
+# writes reports and summaries to the REPORTING_DIR directory
 
-pytest --html=$CODE_HEALTH_DIR/test_report.html --self-contained-html --cov --cov-report=html:$CODE_HEALTH_DIR/test_coverage test
-interrogate -o $CODE_HEALTH_DIR/docstring_coverage.txt -v jaxrk
+SOURCE_DIR=jaxrk
+REPORTING_DIR=code_health
+
+TEST_COV=$REPORTING_DIR/test_coverage
+TEST_COV_XML=$TEST_COV.xml
+TEST_REPORT=$REPORTING_DIR/test_report
+TEST_REPORT_HTML=$TEST_REPORT.html
+TEST_REPORT_XML=$REPORTING_DIR/test_report.xml
+DOC_COV=$REPORTING_DIR/docstring_coverage.txt
+
+SUMMARY_FILE=$REPORTING_DIR/summary.txt
+SUMMARY_FILE_COPY_PASTE=$REPORTING_DIR/summary_copy_paste.txt
+
+function get_test_coverage_rate() {
+    #local line_rate=$(grep '<coverage.*line-rate="[0-1].[0-9]*"' $TEST_COV_XML |grep -o 'line-rate="[0-1].[0-9]*"'| cut -d '"' -f 2)
+    local line_rate=$(xpath -e "string(/coverage/attribute::line-rate)" -q $TEST_COV_XML)
+    echo $line_rate    
+}
+
+function get_doc_coverage_rate() {
+    local function_rate=$(tail -n 1 $REPORTING_DIR/docstring_coverage.txt |grep -o 'actual.*%' | grep -o "[0-9.]*"|head -n 1)
+    python -c "print($function_rate / 100)"
+}
+    
+
+function get_test_success_rate() {
+    local failures=$(xpath -e "string(/testsuites/testsuite/attribute::failures)" -q $TEST_REPORT_XML)
+    local errors=$(xpath -e "string(/testsuites/testsuite/attribute::errors)" -q $TEST_REPORT_XML)
+    local skipped=$(xpath -e "string(/testsuites/testsuite/attribute::skipped)" -q $TEST_REPORT_XML)
+    local total=$(xpath -e "string(/testsuites/testsuite/attribute::tests)" -q $TEST_REPORT_XML)
+    echo $((($total - $failures - $errors - $skipped)/$total))
+}
+
+function write_summary() {
+    local test_coverage_rate=$(get_test_coverage_rate)
+    local doc_coverage_rate=$(get_doc_coverage_rate)
+    local test_success_rate=$(get_test_success_rate)
+    echo "Test coverage rate: $test_coverage_rate" > $SUMMARY_FILE
+    echo "Test success rate: $test_success_rate" >> $SUMMARY_FILE
+    echo "Docstring coverage rate: $doc_coverage_rate" >> $SUMMARY_FILE
+
+    echo "Test coverage rate, Test success rate, Docstring coverage rate, One per line for easy copy-and-pasting" > $SUMMARY_FILE_COPY_PASTE
+    echo $test_coverage_rate >> $SUMMARY_FILE_COPY_PASTE
+    echo $test_success_rate >> $SUMMARY_FILE_COPY_PASTE
+    echo $doc_coverage_rate >> $SUMMARY_FILE_COPY_PASTE
+}
+
+pytest --junit-xml=$TEST_REPORT_XML --html=$TEST_REPORT_HTML --self-contained-html --cov --cov-report=html:$TEST_COV --cov-report=xml:$TEST_COV_XML test
+interrogate -o $DOC_COV -v $SOURCE_DIR
+
+write_summary
