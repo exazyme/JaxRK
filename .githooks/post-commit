@@ -35,7 +35,7 @@ function get_test_success_rate() {
     local errors=$(xpath -e "string(/testsuites/testsuite/attribute::errors)" -q $TEST_REPORT_XML)
     local skipped=$(xpath -e "string(/testsuites/testsuite/attribute::skipped)" -q $TEST_REPORT_XML)
     local total=$(xpath -e "string(/testsuites/testsuite/attribute::tests)" -q $TEST_REPORT_XML)
-    echo $((($total - $failures - $errors - $skipped)/$total))
+    python -c "print(($total - $failures - $errors - $skipped)/$total)"
 }
 
 function write_summary() {
