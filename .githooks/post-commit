@@ -52,7 +52,7 @@ function write_summary() {
     echo $doc_coverage_rate >> $SUMMARY_FILE_COPY_PASTE
 }
 
-pytest --junit-xml=$TEST_REPORT_XML --html=$TEST_REPORT_HTML --self-contained-html --cov --cov-report=html:$TEST_COV --cov-report=xml:$TEST_COV_XML test
+pytest --junit-xml=$TEST_REPORT_XML --html=$TEST_REPORT_HTML --self-contained-html --cov=$SOURCE_DIR --cov-report=html:$TEST_COV --cov-report=xml:$TEST_COV_XML test
 interrogate -o $DOC_COV -v $SOURCE_DIR
 
 write_summary
