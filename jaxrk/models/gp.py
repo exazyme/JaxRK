@@ -105,28 +105,28 @@ gp_predictive_mean = jax.vmap(gp_predictive_mean_univ, (None, 1, 1, 1), 1)
 def gp_predictive_cov_univ_chol(
         gram_train_test: Array,
         gram_test: Array,
-        chol_train_cov: Array):
-    v = sp.linalg.cho_solve((chol_train_cov, True), gram_train_test)
+        chol_gram_train: Array):
+    v = sp.linalg.cho_solve((chol_gram_train, True), gram_train_test)
     return (gram_test - np.dot(gram_train_test.T, v))
 
 
 def gp_predictive_cov_univ_inv(
         gram_train_test: Array,
         gram_test: Array,
-        inv_train_cov: Array):
-    return (gram_test - gram_train_test.T @ inv_train_cov @ gram_train_test)
+        inv_gram_train: Array):
+    return (gram_test - gram_train_test.T @ inv_gram_train @ gram_train_test)
 
 
 def gp_predictive_cov_univ(
         gram_train_test: Array,
         gram_test: Array,
-        inv_train_cov: Array = None,
-        chol_train_cov: Array = None):
-    if chol_train_cov is None:
+        inv_gram_train: Array = None,
+        chol_gram_train: Array = None):
+    if chol_gram_train is None:
         return gp_predictive_cov_univ_inv(
-            gram_train_test, gram_test, inv_train_cov)
+            gram_train_test, gram_test, inv_gram_train)
     return gp_predictive_cov_univ_chol(
-        gram_train_test, gram_test, chol_train_cov)
+        gram_train_test, gram_test, chol_gram_train)
 
 
 @partial(jax.vmap, in_axes=(None, 1), out_axes=2)
@@ -152,8 +152,8 @@ def scale_and_shift_dims_inv(inp, shift_per_dim, scale_per_dim) -> np.ndarray:
 
 #gp_predictive_cov = jax.vmap(gp_predictive_cov_univ, (None, None, None, None, 1), 2)
 
-# def gp_predictive_var_1(gram_train_test:Array, gram_test:Array, inv_train_cov:Array = None, chol_train_cov:Array = None, outp_std:Array = np.ones(1)):
-#     vm = jax.vmap(partial(gp_predictive_cov, inv_train_cov = inv_train_cov, chol_train_cov=chol_train_cov, outp_std=outp_std), (1, 0))
+# def gp_predictive_var_1(gram_train_test:Array, gram_test:Array, inv_gram_train:Array = None, chol_gram_train:Array = None, outp_std:Array = np.ones(1)):
+#     vm = jax.vmap(partial(gp_predictive_cov, inv_gram_train = inv_gram_train, chol_gram_train=chol_gram_train, outp_std=outp_std), (1, 0))
 #     return vm(gram_train_test, jax.numpy.diagonal(gram_test))
 
 
@@ -161,7 +161,7 @@ def gp_predictive_mean(
         gram_train_test: Array,
         train_prec_y: Array,
         y_mean: Array = np.zeros(1),
-        y_std: Array = np.ones(1)):
+        y_std: Array = np.ones((1, 1))):
     m = gp_predictive_mean_univ(gram_train_test, train_prec_y)
     return scale_and_shift_dims(m, y_mean, y_std)
 
@@ -169,32 +169,68 @@ def gp_predictive_mean(
 def gp_predictive_cov(
         gram_train_test: Array,
         gram_test: Array,
-        inv_train_cov: Array = None,
-        chol_train_cov: Array = None,
-        y_std: Array = np.ones(1)):
+        inv_gram_train: Array = None,
+        chol_gram_train: Array = None,
+        y_std: Array = np.ones((1, 1))) -> Array:
+    """Compute the predictive covariance matrix for a GP.
+
+    Args:
+        gram_train_test (Array): Gram matrix train x test
+        gram_test (Array): Gram matrix test x test
+        inv_gram_train (Array, optional): Inverse of gram matrix train x train. Defaults to None.
+        chol_gram_train (Array, optional): Cholesky of gram matrix train x train. Defaults to None.
+        y_std (Array, optional): Standard deviations by which to scale in rows of a 2D array. Defaults to np.ones((1, 1)).
+
+    Returns:
+        Array: The predictive covariance matrix. Last dimension is scaling by y_std.
+    """
     cov = gp_predictive_cov_univ(
         gram_train_test,
         gram_test,
-        inv_train_cov=inv_train_cov,
-        chol_train_cov=chol_train_cov)
+        inv_gram_train=inv_gram_train,
+        chol_gram_train=chol_gram_train)
     return scale_dims(cov, y_std**2)
 
 
-def gp_predictive_var(*args, **kwargs):
-    return np.diagonal(gp_predictive_cov(*args, **kwargs)).T
+vm_cov = jax.vmap(gp_predictive_cov, (1, 0, None, None, None), 0)
+
+
+def gp_predictive_var(
+        gram_train_test: Array,
+        gram_test: Array,
+        inv_gram_train: Array = None,
+        chol_gram_train: Array = None,
+        y_std: Array = np.ones((1, 1))):
+    """Compute the predictive variance for a GP.
+    Args:
+        gram_train_test (Array): Gram matrix train x test
+        gram_test (Array): Gram matrix test x test
+        inv_gram_train (Array, optional): Inverse of gram matrix train x train. Defaults to None.
+        chol_gram_train (Array, optional): Cholesky of gram matrix train x train. Defaults to None.
+        y_std (Array, optional): Standard deviations by which to scale in rows of a 2D array. Defaults to np.ones((1, 1)).
+
+    Returns:
+        Array: The predictive variance matrix. Last dimension is scaling by y_std.
+    """
+    vm_cov = jax.vmap(gp_predictive_cov, (1, 0, None, None, None), 0)
+
+    return vm_cov(
+        gram_train_test, np.diagonal(gram_test)[
+            :, None, None], inv_gram_train, chol_gram_train, y_std).reshape(
+        (gram_test.shape[0], y_std.shape[1]))
 
 
 def gp_predictive(
         gram_train_test: Array,
         gram_test: Array,
-        chol_train_cov: Array,
+        chol_gram_train: Array,
         train_prec_y: Array,
         y_mean: Array = np.zeros(1),
         y_std: Array = np.ones(1),
         y_test: Array = None):
     m = gp_predictive_mean_univ(gram_train_test, train_prec_y)
     cov = gp_predictive_cov_univ_chol(
-        gram_train_test, gram_test, chol_train_cov)
+        gram_train_test, gram_test, chol_gram_train)
     pred_m, pred_cov = scale_and_shift_dims(
         m, y_mean, y_std), scale_dims(
         cov, y_std**2)
