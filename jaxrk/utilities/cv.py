@@ -11,10 +11,18 @@ vcholesky = jit(vmap(partial(sp.linalg.cholesky, lower=True)))
 
 select_rows = jit(vmap(lambda sel, inp: sel @ inp, (0, None)))
 sym_matmul_fixed_inp = jit(vmap(lambda sel, inp: sel @ inp @ sel.T, (0, None)))
-sym_matmul_variable_inp = jit(vmap(lambda sel, inp: sel @ inp @ sel.T,))
+sym_matmul_variable_inp = jit(
+    vmap(
+        lambda sel, inp: sel @ inp @ sel.T,
+    )
+)
 
 vmatmul_fixed_inp = jit(vmap(lambda sel, inp: sel @ inp, (0, None)))
-vmatmul_variable_inp = jit(vmap(lambda sel, inp: sel @ inp,))
+vmatmul_variable_inp = jit(
+    vmap(
+        lambda sel, inp: sel @ inp,
+    )
+)
 
 
 def loo_train_val(n_orig: int):
@@ -24,15 +32,11 @@ def loo_train_val(n_orig: int):
 
 
 def cv_train_val(n_orig: int, n_train: int, n_splits: int, rng: PRNGKeyT):
-    p = vmap(random.permutation, (0, None))(
-        random.split(rng, n_splits), n_orig)
+    p = vmap(random.permutation, (0, None))(random.split(rng, n_splits), n_orig)
     return p[:, :n_train], p[:, n_train:]
 
 
-def idcs_to_selection_matr(
-        n_orig: int,
-        idcs: Array,
-        idcs_sorted: bool = False) -> Array:
+def idcs_to_selection_matr(n_orig: int, idcs: Array, idcs_sorted: bool = False) -> Array:
     """Convert submatrix indices to linear maps that perform the actual selection.
 
     Args:
@@ -48,16 +52,13 @@ def idcs_to_selection_matr(
     rval = np.zeros((*idcs.shape, n_orig))
     for split, vi in enumerate(idcs):
         for r, c in enumerate(vi):
-            rval = rval.at[split, r, c].set(1.)
+            rval = rval.at[split, r, c].set(1.0)
             # Old implementation was:
-            #rval = rval.at[index[split, r, c]].set(1.)
+            # rval = rval.at[index[split, r, c]].set(1.)
     return rval
 
 
-def invert_submatr(
-        gram: Array,
-        train_idcs: Array,
-        zerofill: bool = True) -> Array:
+def invert_submatr(gram: Array, train_idcs: Array, zerofill: bool = True) -> Array:
     """Invert square gram-submatrices for cross validation scheme
 
     Args:
@@ -71,15 +72,11 @@ def invert_submatr(
     train_sel_matr = idcs_to_selection_matr(gram.shape[0], train_idcs)
     rval = vinvert(sym_matmul_fixed_inp(train_sel_matr, gram))
     if zerofill:
-        rval = sym_matmul_variable_inp(
-            np.swapaxes(train_sel_matr, -1, -2), rval)
+        rval = sym_matmul_variable_inp(np.swapaxes(train_sel_matr, -1, -2), rval)
     return rval
 
 
-def cholesky_submatr(
-        gram: Array,
-        train_idcs: Array,
-        zerofill: bool = True) -> Array:
+def cholesky_submatr(gram: Array, train_idcs: Array, zerofill: bool = True) -> Array:
     """Cholesky decompose square gram-submatrices for cross validation scheme
 
     Args:
@@ -93,6 +90,5 @@ def cholesky_submatr(
     train_sel_matr = idcs_to_selection_matr(gram.shape[0], train_idcs)
     rval = vcholesky(sym_matmul_fixed_inp(train_sel_matr, gram))
     if zerofill:
-        rval = sym_matmul_variable_inp(
-            np.swapaxes(train_sel_matr, -1, -2), rval)
+        rval = sym_matmul_variable_inp(np.swapaxes(train_sel_matr, -1, -2), rval)
     return rval

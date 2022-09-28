@@ -48,22 +48,21 @@ class SimpleScaler(Scaler):
             if len(scale.shape) == 1:
                 scale = scale[np.newaxis, :]
             else:
-                assert (len(scale.shape) == 2 and scale.shape[0] == 1)
-        assert np.all(scale > 0.)
+                assert len(scale.shape) == 2 and scale.shape[0] == 1
+        assert np.all(scale > 0.0)
         self.s = scale
 
     @classmethod
-    def make_unconstr(cls,
-                      scale: Union[Array,
-                                   float],
-                      bij: Bijection = NonnegToLowerBd()) -> "SimpleScaler":
+    def make_unconstr(
+        cls, scale: Union[Array, float], bij: Bijection = NonnegToLowerBd()
+    ) -> "SimpleScaler":
         return SimpleScaler(bij(scale))
 
     def __str__(self) -> str:
         return f"SimpleScaler({self.s})"
 
     def inv(self):
-        return 1. / self.s
+        return 1.0 / self.s
 
     def scale(self):
         return self.s
@@ -86,9 +85,7 @@ class ScaledPairwiseDistance:
     For some power p.
     """
 
-    def __init__(self,
-                 scaler: Scaler = NoScaler(),
-                 power: float = 2.):
+    def __init__(self, scaler: Scaler = NoScaler(), power: float = 2.0):
         """Compute scaled pairwise distance, given by
             |X_i-Y_j|^p for all i, j
 
@@ -114,24 +111,20 @@ class ScaledPairwiseDistance:
         if self.is_global:
             return self.gs.inv()
         else:
-            return self.ds.inv()**(1. / self.power)
+            return self.ds.inv() ** (1.0 / self.power)
 
-    def __call__(self, X, Y=None, diag=False,):
+    def __call__(
+        self,
+        X,
+        Y=None,
+        diag=False,
+    ):
         if diag:
             if Y is None:
                 rval = np.zeros(X.shape[0])
             else:
-                assert (X.shape == Y.shape)
-                rval = self.gs(
-                    np.sum(
-                        np.abs(
-                            self.ds(X) -
-                            self.ds(Y))**self.power,
-                        1))
+                assert X.shape == Y.shape
+                rval = self.gs(np.sum(np.abs(self.ds(X) - self.ds(Y)) ** self.power, 1))
         else:
-            rval = self.gs(
-                dist(
-                    self.ds(X),
-                    self.ds(Y),
-                    power=1.)) ** self.power
+            rval = self.gs(dist(self.ds(X), self.ds(Y), power=1.0)) ** self.power
         return rval

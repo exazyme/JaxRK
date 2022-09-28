@@ -10,7 +10,8 @@ __all__ = [
     "InitFn",
     "ConstOrInitFn",
     "FloatOrInitFn",
-    "AnyOrInitFn"]
+    "AnyOrInitFn",
+]
 
 
 PRNGKeyT = Any

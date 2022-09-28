@@ -21,6 +21,7 @@ from scipy.spatial.distance import pdist
 
 class Kernel:
     """A generic kernel type."""
+
     @abstractmethod
     def __call__(self, X, Y=None, diag: bool = False) -> np.array:
         """Compute the gram matrix, i.e. the kernel evaluated at every element of X paired with each element of Y (if not None, otherwise each element of X).
@@ -37,6 +38,7 @@ class Kernel:
 
 class DensityKernel(Kernel):
     """Type for positive definite kernels that are also densities."""
+
     @abstractmethod
     def std(self):
         return np.sqrt(self.var())

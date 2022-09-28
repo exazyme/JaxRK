@@ -24,9 +24,9 @@ CombT = TypeVar("CombT", "LinOp[RhInpVectT, InpVecT]", InpVecT, Array)
 
 class LinOp(Vec, Generic[InpVecT, OutVecT], ABC):
     @abstractmethod
-    def __matmul__(self,
-                   right_inp: CombT) -> Union[OutVecT,
-                                              "LinOp[RhInpVectT, OutVecT]"]:
+    def __matmul__(
+        self, right_inp: CombT
+    ) -> Union[OutVecT, "LinOp[RhInpVectT, OutVecT]"]:
         pass
 
 

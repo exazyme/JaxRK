@@ -10,9 +10,9 @@ __all__ = ["eucldist"]
 
 @jit
 def sqeucldist_simple(a, b=None):
-    a_sumrows = np.einsum('ij,ij->i', a, a)
+    a_sumrows = np.einsum("ij,ij->i", a, a)
     if b is not None:
-        b_sumrows = np.einsum('ij,ij->i', b, b)
+        b_sumrows = np.einsum("ij,ij->i", b, b)
     else:
         b = a
         b_sumrows = a_sumrows
@@ -37,7 +37,7 @@ def sqeucldist_extension(a, b=None):
     return A_ext @ B_ext
 
 
-def eucldist(a, b=None, power=1., variant="simple"):
+def eucldist(a, b=None, power=1.0, variant="simple"):
     if variant == "simple":
         sqdist = sqeucldist_simple(a, b)
     elif variant == "extension":
@@ -48,4 +48,4 @@ def eucldist(a, b=None, power=1., variant="simple"):
     if power == 2:
         return sqdist
     else:
-        return np.power(np.clip(sqdist, 0.), power / 2.)
+        return np.power(np.clip(sqdist, 0.0), power / 2.0)

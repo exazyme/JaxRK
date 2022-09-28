@@ -61,6 +61,7 @@ class LinearizableReduce(Reduce):
         """
         pass
 
+
 # class SeqReduce(Reduce):
 #     children:List[Reduce]
 
@@ -98,8 +99,9 @@ class Prefactors(Reduce):
 
     def __call__(self, inp: np.array, axis: int = 0) -> np.array:
         assert self.prefactors.shape[0] == inp.shape[axis]
-        return inp.astype(self.prefactors.dtype) * \
-            np.expand_dims(self.prefactors, axis=(axis + 1) % 2)
+        return inp.astype(self.prefactors.dtype) * np.expand_dims(
+            self.prefactors, axis=(axis + 1) % 2
+        )
 
     def reduce_first_ax(self, inp: np.array) -> np.array:
         return self.__call__(inp, 0)
@@ -147,15 +149,13 @@ class TileView(LinearizableReduce):
         self.result_len = result_len
 
     def reduce_first_ax(self, inp: np.array) -> np.array:
-        assert self.result_len % inp.shape[0] == 0, "Input can't be broadcasted to target length %d" % self.result_len
+        assert self.result_len % inp.shape[0] == 0, (
+            "Input can't be broadcasted to target length %d" % self.result_len
+        )
         return tile_view(inp, self.result_len // inp.shape[0])
 
     def linearize(self, gram_shape: tuple):
-        return tile_view(
-            np.eye(
-                gram_shape[0]),
-            self.result_len //
-            gram_shape[0])
+        return tile_view(np.eye(gram_shape[0]), self.result_len // gram_shape[0])
 
     def new_len(self, original_len: int) -> int:
         return self.result_len
@@ -170,6 +170,7 @@ class Sum(Reduce):
 
     def new_len(self, original_len: int) -> int:
         return 1
+
 
 #    def linearize(self, gram_shape: tuple) -> np.array:
 #        # sum
@@ -186,6 +187,7 @@ class Mean(Reduce):
     def new_len(self, original_len: int) -> int:
         return 1
 
+
 #    def linearize(self, gram_shape: tuple) -> np.array:
 #        # mean
 #        return np.ones((gram_shape[0], gram_shape[0])) / gram_shape[1]
@@ -200,10 +202,10 @@ class BalancedRed(Reduce):
         self.points_per_split = points_per_split
         if average:
             self.red = np.mean
-            self.factor = 1. / points_per_split
+            self.factor = 1.0 / points_per_split
         else:
             self.red = np.sum
-            self.factor = 1.
+            self.factor = 1.0
 
     def __call__(self, inp: np.array, axis: int = 0) -> np.array:
         perm = list(range(len(inp.shape)))
@@ -211,8 +213,9 @@ class BalancedRed(Reduce):
         perm[axis] = 0
 
         inp = np.transpose(inp, perm)
-        inp = self.red(np.reshape(
-            inp, (-1, self.points_per_split, inp.shape[-1])), axis=1)
+        inp = self.red(
+            np.reshape(inp, (-1, self.points_per_split, inp.shape[-1])), axis=1
+        )
         inp = np.transpose(inp, perm)
         return inp
 
@@ -223,10 +226,9 @@ class BalancedRed(Reduce):
         new_len = self.new_len(inp_shape[0])
         rval = np.zeros((new_len, inp_shape[0]))
         for i in range(new_len):
-            rval = rval.at[i, i *
-                           self.points_per_split:(i +
-                                                  1) *
-                           self.points_per_split].set(self.factor)
+            rval = rval.at[
+                i, i * self.points_per_split : (i + 1) * self.points_per_split
+            ].set(self.factor)
         return rval
 
     def new_len(self, original_len: int) -> int:

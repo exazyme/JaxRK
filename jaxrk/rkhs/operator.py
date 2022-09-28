@@ -18,11 +18,12 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
     """Finite rank LinOp in RKHS"""
 
     def __init__(
-            self,
-            inp_feat: InpVecT,
-            outp_feat: OutVecT,
-            matr: Array = None,
-            normalize: bool = False):
+        self,
+        inp_feat: InpVecT,
+        outp_feat: OutVecT,
+        matr: Array = None,
+        normalize: bool = False,
+    ):
         super().__init__()
         if matr is not None:
             assert matr.shape == (len(outp_feat), len(inp_feat))
@@ -33,9 +34,9 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
     def __len__(self):
         return len(self.inp_feat) * len(self.outp_feat)
 
-    def __matmul__(self,
-                   right_inp: CombT) -> Union[OutVecT,
-                                              "FiniteOp[RhInpVectT, OutVecT]"]:
+    def __matmul__(
+        self, right_inp: CombT
+    ) -> Union[OutVecT, "FiniteOp[RhInpVectT, OutVecT]"]:
         if isinstance(right_inp, FiniteOp):
             # right_inp is an operator
             # Op1 @ Op2
@@ -45,8 +46,7 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
             return FiniteOp(right_inp.inp_feat, self.outp_feat, matr)
         else:
             if isinstance(right_inp, DeviceArray):
-                right_inp = FiniteVec(
-                    self.inp_feat.k, np.atleast_2d(right_inp))
+                right_inp = FiniteVec(self.inp_feat.k, np.atleast_2d(right_inp))
             # right_inp is a vector
             # Op @ vec
             right_gram = inner(self.inp_feat, right_inp)
@@ -66,11 +66,7 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
 
     @property
     def T(self) -> "FiniteOp[OutVecT, InpVecT]":
-        return FiniteOp(
-            self.outp_feat,
-            self.inp_feat,
-            self.matr.T,
-            self._normalize)
+        return FiniteOp(self.outp_feat, self.inp_feat, self.matr.T, self._normalize)
 
     def __call__(self, inp: DeviceArray) -> RkhsObject:
         return self @ FiniteVec(self.inp_feat.k, np.atleast_2d(inp))

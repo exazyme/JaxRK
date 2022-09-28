@@ -44,9 +44,9 @@ class SquarePlus(Bijection):
 
         Returns:
             ArrayOrFloatT: A float or Array (depending on the input).
-       """
-        #(x + np.sqrt(x**2 + 4))/2
-        return lax.mul(0.5, lax.add(x, lax.sqrt(lax.add(lax.square(x), 4.))))
+        """
+        # (x + np.sqrt(x**2 + 4))/2
+        return lax.mul(0.5, lax.add(x, lax.sqrt(lax.add(lax.square(x), 4.0))))
 
     def inv(self, y: ArrayOrFloatT) -> ArrayOrFloatT:
         """Map a non-negative number to a real number using the inverse squareplus function defined as
@@ -58,7 +58,7 @@ class SquarePlus(Bijection):
         Returns:
             ArrayOrFloatT: A float or Array (depending on the input).
         """
-        return lax.div(lax.sub(lax.square(y), 1.), y)
+        return lax.div(lax.sub(lax.square(y), 1.0), y)
 
 
 class SquareSquash(Bijection):
@@ -72,17 +72,10 @@ class SquareSquash(Bijection):
         Returns:
             ArrayOrFloatT: A float or Array (depending on the input).
         """
-        #(1 + x/np.sqrt(4 + x**2))/2
+        # (1 + x/np.sqrt(4 + x**2))/2
         return lax.mul(
-            0.5,
-            lax.add(
-                lax.div(
-                    x,
-                    lax.sqrt(
-                        lax.add(
-                            lax.square(x),
-                            4.))),
-                1.))
+            0.5, lax.add(lax.div(x, lax.sqrt(lax.add(lax.square(x), 4.0))), 1.0)
+        )
 
     def inv(self, y: ArrayOrFloatT) -> ArrayOrFloatT:
         """Map a number in the intervall (0,1) to a real number using the inverse square squash function.
@@ -93,17 +86,15 @@ class SquareSquash(Bijection):
         Returns:
             ArrayOrFloatT: A float or Array (depending on the input).
         """
-        pos_res = np.sqrt((-4. * y**2 + 4. * y - 1) / (y**2 - y))
+        pos_res = np.sqrt((-4.0 * y**2 + 4.0 * y - 1) / (y**2 - y))
         # 2. / np.sqrt(1./np.sqrt(2*y - 2) - 1)
         return np.where(y < 0.5, -pos_res, pos_res)
 
 
 class SquashingToBounded(Bijection):
     def __init__(
-            self,
-            lower_bound: float,
-            upper_bound: float,
-            bij: Bijection = SquareSquash()):
+        self, lower_bound: float, upper_bound: float, bij: Bijection = SquareSquash()
+    ):
         """SquashingToBounded is a bijection mapping the reals to the intervall [lower_bound, upper_bound] using a squashing function.
 
         Args:
@@ -125,8 +116,8 @@ class SquashingToBounded(Bijection):
 
         Returns:
             ArrayOrFloatT: A float or Array (depending on the input).
-       """
-        return self.scale * np.clip(self.bij(x), 0., 1.) + self.lower_bound
+        """
+        return self.scale * np.clip(self.bij(x), 0.0, 1.0) + self.lower_bound
 
     def inv(self, y: ArrayOrFloatT) -> ArrayOrFloatT:
         """Map a number with lower_bound <= y <= upper_bound to a real number using the inverse bijection.
@@ -141,7 +132,7 @@ class SquashingToBounded(Bijection):
 
 
 class NonnegToLowerBd(Bijection):
-    def __init__(self, lower_bound: float = 0., bij: Bijection = SquarePlus()):
+    def __init__(self, lower_bound: float = 0.0, bij: Bijection = SquarePlus()):
         assert lower_bound is not None
         self.lower_bound = lower_bound
         self.bij = bij
@@ -154,8 +145,8 @@ class NonnegToLowerBd(Bijection):
 
         Returns:
             ArrayOrFloatT: A float or Array (depending on the input).
-       """
-        return np.clip(self.bij(x), 0.) + self.lower_bound
+        """
+        return np.clip(self.bij(x), 0.0) + self.lower_bound
 
     def inv(self, y: ArrayOrFloatT) -> ArrayOrFloatT:
         """Map a non-negative number to a real number with lower bound using the inverse of a nonnegative bijection.
@@ -180,7 +171,7 @@ class FlipLowerToUpperBound(Bijection):
         return -self.lb.inv(-y)
 
 
-def NonnegToUpperBd(upper_bound: float = 0.):
+def NonnegToUpperBd(upper_bound: float = 0.0):
     return FlipLowerToUpperBound(upper_bound, NonnegToLowerBd)
 
 
@@ -213,16 +204,14 @@ class CholeskyBijection(Bijection):
         return self.is_param(inp) and np.all(np.diagonal(inp) > 0)
 
     def param_to_chol(self, param):
-        return np.tril(param, -1) + \
-            np.diagflat(self.diag_bij(np.diagonal(param)))
+        return np.tril(param, -1) + np.diagflat(self.diag_bij(np.diagonal(param)))
 
     def psd_to_param(self, psd_matr):
         L = sp.linalg.cholesky(psd_matr, lower=True)
         return self.chol_to_param(L)
 
     def chol_to_param(self, chol):
-        return np.tril(chol, -1) + \
-            np.diagflat(self.diag_bij.inv(np.diagonal(chol)))
+        return np.tril(chol, -1) + np.diagflat(self.diag_bij.inv(np.diagonal(chol)))
 
     def __call__(self, x: Array) -> Array:
         """Map a parameter vector to a PSD matrix using the CholeskyBijecton.
@@ -237,7 +226,7 @@ class CholeskyBijection(Bijection):
 
         Returns:
             ArrayOrFloatT: An array of shape (n, n) representing a symmetric positive definite matrix.
-       """
+        """
         c = self.param_to_chol(x)
         return c @ c.T
 
