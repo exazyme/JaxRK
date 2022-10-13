@@ -7,6 +7,8 @@ from ..core.constraints import NonnegToLowerBd
 from ..core.typing import *
 from ..utilities.distances import dist
 
+# from jax.experimental.checkify import check
+
 
 class Scaler(ABC):
     @abstractmethod
@@ -48,8 +50,9 @@ class SimpleScaler(Scaler):
             if len(scale.shape) == 1:
                 scale = scale[np.newaxis, :]
             else:
-                assert len(scale.shape) == 2 and scale.shape[0] == 1
-        assert np.all(scale > 0.0)
+                # check(len(scale.shape) == 2 and scale.shape[0] == 1, "Scale must be a vector or a scalar")
+                pass
+        # check(np.all(scale > 0.0), "Scale must be positive")
         self.s = scale
 
     @classmethod
@@ -72,7 +75,7 @@ class SimpleScaler(Scaler):
             return None
         # either global scaling, meaning self.scale().size == 1,
         # or local scaling, in which case inp.shape[1] ==
-        assert self.scale().size == 1 or self.scale().size == inp.shape[1]
+        # check(self.scale().size == 1 or self.scale().size == inp.shape[1], "Scaling dimension mismatch")
 
         return self.s * inp
 
@@ -123,7 +126,7 @@ class ScaledPairwiseDistance:
             if Y is None:
                 rval = np.zeros(X.shape[0])
             else:
-                assert X.shape == Y.shape
+                # check(X.shape == Y.shape, "X and Y must have the same shape")
                 rval = self.gs(np.sum(np.abs(self.ds(X) - self.ds(Y)) ** self.power, 1))
         else:
             rval = self.gs(dist(self.ds(X), self.ds(Y), power=1.0)) ** self.power

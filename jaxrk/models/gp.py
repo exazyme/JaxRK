@@ -16,9 +16,12 @@ __log2pi_half = np.log(2.0 * np.pi) / 2
 # this is the loglikelihood for a univariate GP with zero mean.
 
 
+@jax.jit
 def gp_loglhood_mean0_univ(y: Array, cov_chol: Array, prec_y: Array = None) -> float:
     """Log likelihood for a univariate GP with zero mean.
-    (Which is the same as that of a multivariate gaussian distribution)
+    This is the same as that of a multivariate gaussian distribution.
+    Assume that covariance structure is between rows only and that
+    columns of y represent different output dimensions (all with the same covariance structure).
 
     Args:
         y (Array): The observed values.
@@ -26,32 +29,27 @@ def gp_loglhood_mean0_univ(y: Array, cov_chol: Array, prec_y: Array = None) -> f
         prec_y (Array, optional): The product of precision matrix and y. Defaults to None, in which case it is calculated from the other arguments.
 
     Returns:
-        float: Log likelihood
+        float: Log likelihood for each dimension (column of y) separately
     """
     if prec_y is None:
         prec_y = sp.linalg.cho_solve((cov_chol, True), y)
     mll = -0.5 * np.einsum("ik,ik->k", y, prec_y)
     mll -= np.log(np.diag(cov_chol)).sum()
     mll -= len(cov_chol) * __log2pi_half
-    return mll.sum()
+    return mll  # .sum(axis=-1)
 
 
-@jax.jit
 def gp_loglhood_mean0(y: Array, cov_chol: Array, prec_y: Array = None) -> float:
-    """Log likelihood for a multivariate GP with zero mean, for which the covariance matrix is the same for all dimensions.
+    """Log likelihood for a multivariate GP with zero mean, for which the covariance matrix is assumed to be between rows.
     Args:
-        y (Array): The observed values.
+        y (Array): The observed values. Covariance is among rows (i.e. len(y) == cov_chol.shape[0] == cov_chol.shape[1]). Different dimensions of observations in columns.
         cov_chol (Array): A cholesky factor of the gram matrix/covariance matrix
         prec_y (Array, optional): The product of precision matrix and y. Defaults to None, in which case it is calculated from the other arguments.
 
     Returns:
-        float: Log likelihood
+        float: Log likelihood of all
     """
-    rval = 0.0
-    for y_dim in y.T:
-        incr = gp_loglhood_mean0_univ(y_dim[:, np.newaxis], cov_chol, prec_y)
-        rval += incr
-    return rval
+    return gp_loglhood_mean0_univ(y, cov_chol, prec_y).sum()
 
 
 def gp_init(x_inner_x: Array, y: Array, noise: float, normalize_y: bool = False):
@@ -251,6 +249,28 @@ def loglhood_loss(
     return loglhood_y
 
 
+def dcg(y_true, y_score):
+    order = np.argsort(y_score)[::-1]
+    discounts = np.log2(np.arange(len(y_true)) + 2)
+    print("=====", y_true[order], discounts, "=====")
+    print(y_true[order] / discounts)
+    return np.sum(y_true[order] / discounts)
+
+
+def dcg_loss(
+    y_test: Array, pred_mean_y: Array, pred_cov_y: Array, loglhood_y: Array
+) -> float:
+    ucb_crit = pred_mean_y + 0.5 * np.sqrt(np.clip(np.diagonal(pred_cov_y), 0, None))
+    return -dcg(y_test, ucb_crit)
+
+
+def idcg_loss(
+    y_test: Array, pred_mean_y: Array, pred_cov_y: Array, loglhood_y: Array
+) -> float:
+    ucb_crit = pred_mean_y + 0.5 * np.sqrt(np.clip(np.diagonal(pred_cov_y), 0, None))
+    return -dcg(y_test, ucb_crit) / dcg(y_test, y_test)
+
+
 def differences(a: np.ndarray):
     result = []
     for i, x1 in enumerate(a):
@@ -329,6 +349,15 @@ def gp_val_loss(
 vmap_gp_val_lhood = jax.jit(
     jax.vmap(partial(gp_val_loss, loss=loglhood_loss), (0, 0, None, None, None))
 )
+
+vmap_gp_val_idcg = jax.jit(
+    jax.vmap(partial(gp_val_loss, loss=idcg_loss), (0, 0, None, None, None))
+)
+
+vmap_gp_val_dcg = jax.jit(
+    jax.vmap(partial(gp_val_loss, loss=dcg_loss), (0, 0, None, None, None))
+)
+
 # vmap_gp_val_kendall = jax.jit(jax.vmap(partial(gp_val_loss, loss = UcbRankLoss(stats.kendalls_tau, 0.)), (0, 0, None, None, None)))
 vmap_gp_val_rank = jax.jit(
     jax.vmap(

@@ -9,6 +9,8 @@ import jax.scipy as sp
 import jax.scipy.stats as stats
 from jax.random import PRNGKey
 
+# from jax.experimental.checkify import check, checkify
+
 from jax.numpy import exp, log, sqrt
 from jax.scipy.special import logsumexp
 from scipy.optimize import minimize
@@ -65,13 +67,15 @@ class GenGaussKernel(DensityKernel):  # this is the gennorm distribution from sc
         return scale_bij.inv(constr_scale), shape_bij.inv(constr_shape)
 
     @classmethod
+    # @checkify
     def make(cls, length_scale: Array, shape: float) -> "GenGaussKernel":
-        """Factory for constructing a GenGaussKernel from scale and shape parameters.
+        """Method for constructing a GenGaussKernel from scale and shape parameters.
         Args:
             scale (Array): Scale parameter, nonnegative.
             shape (float): Shape parameter, in half-open interval (0,2]. Lower values result in pointier kernel functions. Shape == 2 results in usual Gaussian kernel, shape == 1 results in Laplace kernel.
         """
-        assert shape > 0 and shape <= 2
+        # check(shape > 0, "Shape parameter must be in (0,2].")
+        # check(shape <= 2, "Shape parameter must be in (0,2].")
         dist = ScaledPairwiseDistance(
             scaler=SimpleScaler(1.0 / length_scale), power=shape
         )
@@ -79,7 +83,7 @@ class GenGaussKernel(DensityKernel):  # this is the gennorm distribution from sc
 
     @classmethod
     def make_laplace(cls, length_scale: Array) -> "GenGaussKernel":
-        """Factory for constructing a Laplace kernel from scale parameter.
+        """Method for constructing a Laplace kernel from scale parameter.
         Args:
             scale (Array): Scale parameter, nonnegative.
         """
@@ -87,7 +91,7 @@ class GenGaussKernel(DensityKernel):  # this is the gennorm distribution from sc
 
     @classmethod
     def make_gauss(cls, length_scale: Array) -> "GenGaussKernel":
-        """Factory for constructing a Laplace kernel from scale parameter.
+        """Method for constructing a Laplace kernel from scale parameter.
         Args:
             scale (Array): Scale parameter, nonnegative.
         """
@@ -123,7 +127,7 @@ class PeriodicKernel(Kernel):
             length_scale (float): Length scale.
         """
         super().__init__()
-        assert period > 0 and length_scale > 0
+        # check(period > 0 and length_scale > 0, "Period and length scale must be positive.")
         self.dist = ScaledPairwiseDistance(scaler=SimpleScaler(1.0 / period), power=1.0)
         self.ls = length_scale
 
@@ -186,9 +190,9 @@ class ThreshSpikeKernel(Kernel):
             threshold_distance (float): Distance threshold.
         """
         super().__init__()
-        assert spike > 0
-        assert abs(non_spike) < spike
-        assert threshold >= 0
+        # check(spike > 0, "Spike value must be positive.")
+        # check(abs(non_spike) < spike, "Non-spike value must be smaller in absolute value than spike value.")
+        # check(threshold >= 0, "Threshold must be nonnegative.")
         self.dist = dist
         self.spike, self.non_spike, self.threshold = spike, non_spike, threshold
 
@@ -229,8 +233,8 @@ class ThreshSpikeKernel(Kernel):
         )
 
     def __call__(self, X, Y=None, diag=False):
-        assert len(np.shape(X)) == 2
-        assert not diag
+        # check(len(np.shape(X)) == 2, "X must be a 2D array.")
+        # check(not diag, "Diagonal only version not implemented for this kernel.")
         return np.where(
             self.dist(X, Y, diag) <= self.threshold, self.spike, self.non_spike
         )
