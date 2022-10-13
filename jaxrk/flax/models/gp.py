@@ -23,6 +23,6 @@ class FlaxGP(nn.Module):
             self.train_inp_vec, self.train_outp, self.regul, normalize_y=True
         )  # (self.train_inp_vec, self.train_outp_vec)
 
-    def neg_llhood(self):
+    def neg_llhood(self, cv_split) -> float:
         # Marginal likelihood:
         return -self.get_gp().marginal_loglhood()
