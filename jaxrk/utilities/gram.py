@@ -73,7 +73,7 @@ def choose_representer_from_gram(G, factors):
 
 
 def __casted_output(function):
-    return lambda x: onp.asarray(function(x), dtype=np.float64)
+    return lambda x: np.asarray(function(x), dtype=np.float64)
 
 
 def gram_projection(

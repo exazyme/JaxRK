@@ -7,7 +7,7 @@ Created on Thu Jan 10 10:01:56 2019
 
 from typing import Callable
 
-from abc import abstractmethod
+from abc import abstractmethod, abstractproperty
 import numpy as onp
 import jax.numpy as np
 import jax.scipy as sp
@@ -39,11 +39,11 @@ class Kernel:
 class DensityKernel(Kernel):
     """Type for positive definite kernels that are also densities."""
 
-    @abstractmethod
+    @abstractproperty
     def std(self):
         return np.sqrt(self.var())
 
-    @abstractmethod
+    @abstractproperty
     def var(self):
         raise NotImplementedError()
 

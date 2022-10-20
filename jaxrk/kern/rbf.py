@@ -101,9 +101,11 @@ class GenGaussKernel(DensityKernel):  # this is the gennorm distribution from sc
 
         return GenGaussKernel.make(length_scale / f, 2.0)
 
+    @property
     def std(self):
-        return np.sqrt(self.var())
+        return np.sqrt(self.var)
 
+    @property
     def var(self):
         f = sp.special.gammaln(np.array([3, 1]) / self.dist.power)
         return self.dist._get_scale_param() ** 2 * np.exp(f[0] - f[1])

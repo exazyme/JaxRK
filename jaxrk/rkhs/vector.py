@@ -141,7 +141,7 @@ class FiniteVec(Vec):
     def get_mean_var(self, keepdims=False) -> np.ndarray:
         mean = self.reduce_gram(self.insp_pts, 0)
         variance_of_expectations = self.reduce_gram(self.insp_pts**2, 0) - mean**2
-        var = self.k.var() + variance_of_expectations
+        var = self.k.var + variance_of_expectations
 
         if keepdims:
             return (mean, var)
@@ -296,7 +296,8 @@ class CombVec(Vec, Generic[VrightT, VleftT]):
         else:
             assert Y.operation == self.operation
         rval = self.reduce_gram(
-            Y.reduce_gram(self.operation(self.vR.inner(Y.vR), self.vL.inner(Y.vL)), 1), 0
+            Y.reduce_gram(self.operation(self.vR.inner(Y.vR), self.vL.inner(Y.vL)), 1),
+            0,
         )
         if full:
             return rval
