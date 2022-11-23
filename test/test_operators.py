@@ -1,8 +1,6 @@
 import copy
 import re
-from jaxrk.reduce.base import TileView
-from jaxrk.reduce.lincomb import LinearReduce
-from jaxrk.reduce.base import BalancedRed
+from jaxrk.reduce import LinearReduce, BalancedRed
 from jaxrk.rkhs.cov import Cov_regul
 from jaxrk.models.conditional_operator import RidgeCmo
 from operator import inv
@@ -80,7 +78,10 @@ def test_FiniteOp():
     rv_fvec = FiniteVec(gk_x, random.normal(rng, (n_rvs, 1)) * 5)
     C3 = FiniteOp(rv_fvec, rv_fvec, np.eye(n_rvs))
     assert np.allclose(
-        (C3 @ C1).matr, gk_x(rv_fvec.insp_pts, ref_fvec.insp_pts) @ C1.matr, 0.001, 0.001
+        (C3 @ C1).matr,
+        gk_x(rv_fvec.insp_pts, ref_fvec.insp_pts) @ C1.matr,
+        0.001,
+        0.001,
     )
 
 
@@ -192,10 +193,10 @@ def test_Cdmo(plot=False):
 
     (rvs, means, true_dens) = generate_donut(500, 10)
 
-    regul = CovOp.regul(1, len(rvs))  # we will look at 1 point inputs
+    regul = Cov_regul(1, len(rvs))  # we will look at 1 point inputs
 
-    invec = FiniteVec(GenGaussKernel(0.3, 1.7), rvs[:, :1])
-    outvec = FiniteVec(GenGaussKernel(0.3, 1.7), rvs[:, 1:])
+    invec = FiniteVec(GenGaussKernel.make(0.3, 1.7), rvs[:, :1])
+    outvec = FiniteVec(GenGaussKernel.make(0.3, 1.7), rvs[:, 1:])
     refervec = FiniteVec(outvec.k, np.linspace(-4, 4, 10000)[:, None])
     C_ref = CovOp(refervec)
 

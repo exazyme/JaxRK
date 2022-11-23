@@ -23,30 +23,40 @@ class Kernel:
     """A generic kernel type."""
 
     @abstractmethod
-    def __call__(self, X, Y=None, diag: bool = False) -> np.array:
+    def __call__(
+        self, X: np.ndarray, Y: np.ndarray = None, diag: bool = False
+    ) -> np.ndarray:
         """Compute the gram matrix, i.e. the kernel evaluated at every element of X paired with each element of Y (if not None, otherwise each element of X).
 
         Args:
-            X: input space points, one per row.
-            Y: input space points, one per row. If none, default to Y = X.
-            diag: if `True`, compute only the diagonal elements of the gram matrix.
+            X (Array): Input space points, one per row.
+            Y (Array, optional): Input space points, one per row. Defaults to None, in which case Y = X.
+            diag (bool, optional): If `True`, compute only the diagonal elements of the gram matrix. Defaults to False.
 
         Returns:
-            The gram matrix or its diagonal, depending on passed parameters."""
+            Array: Gram matrix or its diagonal."""
+
         raise NotImplementedError()
 
 
 class DensityKernel(Kernel):
-    """Type for positive definite kernels that are also densities."""
+    """Positive definite kernel that is also a density."""
 
     @abstractproperty
     def std(self):
+        """Standard deviation of the kernel."""
         return np.sqrt(self.var())
 
     @abstractproperty
     def var(self):
+        """Variance of the kernel."""
         raise NotImplementedError()
 
     @abstractmethod
     def rvs(self, nsamps):
+        """Draw samples from the distribution defined by the kernel.
+
+        Args:
+            nsamps (int): Number of samples to draw.
+        """
         raise NotImplementedError()

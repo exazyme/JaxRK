@@ -14,7 +14,7 @@ rng = np.random.RandomState(1)
 def test_SparseReduce():
     gram = rng.randn(4, 3)
     r1 = SparseReduce([np.array([[0, 1]]), np.array([[0, 3]]), np.array([[0, 2]])], True)
-    r2 = r1.to_linear()
+    r2 = r1.linearize(gram.shape, 0)
     for r in [r1, r2]:
         rgr = r(gram, 0)
         assert np.allclose(rgr[0], (gram[0] + gram[1]) / 2)

@@ -3,8 +3,6 @@ from dataclasses import field
 from functools import partial
 
 from numpy.core.fromnumeric import squeeze
-from ..reduce.lincomb import LinearReduce
-from ..reduce.base import Prefactors, Sum, Mean
 from time import time
 from typing import Generic, TypeVar, List, Callable, Union
 
@@ -17,7 +15,7 @@ from jax.numpy import dot, exp, log
 from jax.scipy.special import logsumexp
 from numpy.random import rand
 
-from ..reduce import Reduce, NoReduce
+from ..reduce import Reduce, LinearReduce, Prefactors, Sum, Mean, Scale, Center
 from ..kern import Kernel
 from ..utilities.gram import (
     rkhs_gram_cdist,
@@ -38,6 +36,13 @@ class FiniteVec(Vec):
     """
 
     def __init__(self, k: Kernel, insp_pts: Union[Vec, Array], reduce: List[Reduce] = []):
+        """Constructor for FiniteVec.
+
+        Args:
+            k (Kernel): The kernel.
+            insp_pts (Union[Vec, Array]): The input space points. These might themselves be RKHS elements if given as a Vec.
+            reduce (List[Reduce], optional): The list of reductions to apply to the vector. Defaults to [].
+        """
         super().__init__()
         if not isinstance(insp_pts, Vec):
             assert len(insp_pts.shape) == 2
@@ -51,7 +56,15 @@ class FiniteVec(Vec):
         self.__len = Reduce.final_len(len(self.insp_pts), self.reduce)
         self._raw_gram_cache = None
 
-    def __eq__(self, other):
+    def __eq__(self, other: "FiniteVec") -> bool:
+        """Equality test.
+
+        Args:
+            other (FiniteVec): The other vector.
+
+        Returns:
+            bool: True if the vectors are equal.
+        """
         assert False, "not yet implemented checking equality of reduce"
         return (
             isinstance(other, self.__class__)
@@ -59,19 +72,28 @@ class FiniteVec(Vec):
             and other.k == self.k
         )
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """The length of the vector.
+
+        Returns:
+            int: The length of the vector.
+        """
         return self.__len
 
     def __neg__(self):
-        self.updated(-self.prefactors)
+        """Negation of the vector."""
+        self.extend_reduce([Scale(-1)])
 
-    def inner(self, Y=None, full=True):
-        if not full and Y is not None:
-            raise ValueError("Ambiguous inputs: `full` and `y` are not compatible.")
-        if not full:
-            return self.reduce_gram(
-                self.reduce_gram(self.k(self.insp_pts, full=full), axis=0), axis=1
-            )
+    def inner(self, Y: "FiniteVec" = None) -> Array:
+        """Compute the inner product of the vector with another vector.
+
+        Args:
+            Y (FiniteVec, optional): The other vector. Defaults to None, in which case `Y = self`.
+
+        Returns:
+            Array: The inner product.
+        """
+
         if Y is not None:
             assert self.k == Y.k
         else:
@@ -82,6 +104,11 @@ class FiniteVec(Vec):
         return r2
 
     def normalized(self) -> "FiniteVec":
+        """Normalize the vector so that it is a convex combination of RKHS elements.
+
+        Returns:
+            FiniteVec: The normalized vector.
+        """
         r = self.reduce
         if isinstance(r[-1], Prefactors):
             p = r[-1].prefactors / np.sum(r[-1].prefactors)
@@ -93,7 +120,15 @@ class FiniteVec(Vec):
             assert False
             p = np.ones(len(self)) / len(self)
 
-    def updated(self, prefactors) -> "FiniteVec":
+    def updated(self, prefactors: np.ndarray) -> "FiniteVec":
+        """Update the vector with new prefactors.
+
+        Args:
+            prefactors (np.ndarray): The new prefactors.
+
+        Returns:
+            FiniteVec: The updated vector.
+        """
         _r = copy(self.reduce)
         previous_reduction = None
         if len(_r) > 0 and (
@@ -120,9 +155,22 @@ class FiniteVec(Vec):
         return FiniteVec(self.k, self.insp_pts, _r)
 
     def centered(self) -> "FiniteVec":
+        """Centered version of the vector.
+
+        Returns:
+            FiniteVec: Centered vector.
+        """
         return self.extend_reduce([Center()])
 
     def extend_reduce(self, r: List[Reduce]) -> "FiniteVec":
+        """Extend the list of reductions.
+
+        Args:
+            r (List[Reduce]): The list of reductions to extend with.
+
+        Returns:
+            FiniteVec: The extended version of the vector.
+        """
         if r is None or len(r) == 0:
             return self
         else:
@@ -130,15 +178,40 @@ class FiniteVec(Vec):
             _r.extend(r)
             return FiniteVec(self.k, self.insp_pts, _r)
 
-    def reduce_gram(self, gram, axis=0):
+    def reduce_gram(self, gram: np.ndarray, axis: np.uint = 0) -> np.ndarray:
+        """Reduce the gram matrix.
+
+        Args:
+            gram (np.ndarray): The gram matrix.
+            axis (np.uint, optional): The axis to reduce along. Defaults to 0.
+
+        Returns:
+            np.ndarray: The reduced gram matrix.
+        """
         return Reduce.apply(gram, self.reduce, axis)
 
     def nsamps(self, mean=False) -> np.ndarray:
+        """Number of samples, either for each element of the vector or their mean.
+
+        Args:
+            mean (bool, optional): Whether to return the mean number of samples. Defaults to False.
+
+        Returns:
+            np.ndarray: The number of samples.
+        """
         n = len(self.insp_pts)
         rval = Reduce.apply(np.ones(n)[:, None] * n, self.reduce, 0)
         return rval.mean() if mean else rval
 
     def get_mean_var(self, keepdims=False) -> np.ndarray:
+        """Get the mean and variance of the vector.
+
+        Args:
+            keepdims (bool, optional): Whether to keep the dimensions. Defaults to False.
+
+        Returns:
+            np.ndarray: The mean and variance.
+        """
         mean = self.reduce_gram(self.insp_pts, 0)
         variance_of_expectations = self.reduce_gram(self.insp_pts**2, 0) - mean**2
         var = self.k.var + variance_of_expectations
@@ -148,19 +221,38 @@ class FiniteVec(Vec):
         else:
             return (np.squeeze(mean), np.squeeze(var))
 
-    def sum(self, use_linear_reduce=False) -> "FiniteVec":
-        if use_linear_reduce:
-            return self.extend_reduce([LinearReduce(np.ones((1, len(self))))])
-        else:
-            return self.extend_reduce([Sum()])
+    def sum(self) -> "FiniteVec":
+        """Sum the elements of the vector.
+
+        Returns:
+            FiniteVec: The sum of the elements of the vector, i.e. a vector of length 1.
+        """
+        return self.extend_reduce([Sum().linearize((len(self),))])
 
     def mean(
         self,
     ) -> "FiniteVec":
-        return self.extend_reduce([Mean()])
+        """Mean of the elements of the vector.
+
+        Returns:
+            FiniteVec: The mean of the elements of the vector, i.e. a vector of length 1.
+        """
+        return self.extend_reduce([Mean().linearize((len(self),))])
 
     @classmethod
-    def construct_RKHS_Elem(cls, kern, inspace_points, prefactors=None) -> "FiniteVec":
+    def construct_RKHS_Elem(
+        cls, kern: Kernel, inspace_points: np.ndarray, prefactors: np.ndarray = None
+    ) -> "FiniteVec":
+        """Construct a length 1 RKHS vector that is a linear combination of RKHS elements.
+
+        Args:
+            kern (Kernel): The kernel.
+            inspace_points (np.ndarray): The points in the input space.
+            prefactors (np.ndarray, optional): The prefactors. Defaults to None, in which case the prefactors are set to 1.
+
+        Returns:
+            FiniteVec: The RKHS element / length 1 RKHS vector.
+        """
         if prefactors is None:
             prefactors = np.ones(len(inspace_points))
         else:
@@ -171,8 +263,26 @@ class FiniteVec(Vec):
 
     @classmethod
     def construct_RKHS_Elem_from_estimate(
-        cls, kern, inspace_points, estimate="support", unsigned=True, regul=0.1
+        cls,
+        kern: Kernel,
+        inspace_points: np.ndarray,
+        estimate: str = "support",
+        unsigned: bool = True,
+        regul: float = 0.1,
     ) -> "FiniteVec":
+        """Construct a length 1 RKHS vector by estimation from a set of distribution samples in the input space.
+
+        Args:
+            kern (Kernel): The kernel.
+            inspace_points (np.ndarray): The samples in the input space.
+            estimate (str, optional): The type of estimate. Defaults to "support", in which case the estimate is the support of the distribution.
+            unsigned (bool, optional): Whether to use the unsigned version of the estimate. Defaults to True.
+            regul (float, optional): The regularization parameter. Defaults to 0.1.
+
+        Returns:
+            FiniteVec: The RKHS element / length 1 RKHS vector representing the estimate.
+        """
+
         prefactors = distr_estimate_optimization(kern, inspace_points, est=estimate)
         return FiniteVec(
             kern, inspace_points, prefactors, points_per_split=len(inspace_points)
@@ -180,11 +290,23 @@ class FiniteVec(Vec):
 
     @property
     def _raw_gram(self):
+        """The raw gram matrix of this vector with itself, i.e. without any reductions applied."""
         if self._raw_gram_cache is None:
             self._raw_gram_cache = self.k(self.insp_pts).astype(np.float64)
         return self._raw_gram_cache
 
-    def point_representant(self, method: str = "inspace_point", keepdims: bool = False):
+    def point_representant(
+        self, method: str = "inspace_point", keepdims: bool = False
+    ) -> np.ndarray:
+        """Get a point representant of the vector.
+
+        Args:
+            method (str, optional): The method to use. If `mean`, return the mean of the distribution defined by the RKHS element under the assumption that a DensityKernel is used. Defaults to "inspace_point", in which case the point representant is the point in the input space whoms feature map is closest to the vector in RKHS norm.
+            keepdims (bool, optional): Whether to keep the dimensions. Defaults to False.
+
+        Returns:
+            np.ndarray: The point representant.
+        """
         if method == "inspace_point":
             assert isinstance(self.reduce[-1], Prefactors) or isinstance(
                 self.reduce[-1], LinearReduce
@@ -239,15 +361,33 @@ class FiniteVec(Vec):
         """
         return self.normalized().pos_proj(nsamps).normalized()
 
-    def __call__(self, argument):
-        return inner(self, FiniteVec(self.k, argument, []))
+    def __call__(self, argument: np.ndarray) -> np.ndarray:
+        """Evaluate the RKHS elements at points in the input space.
+
+        Args:
+            argument (np.ndarray): The points in the input space.
+
+        Returns:
+            np.ndarray: The values of the RKHS elements at the points in the input space.
+        """
+        return self.inner(FiniteVec(self.k, argument, []))
 
 
-def distr_estimate_optimization(kernel, support_points, est="support"):
+def distr_estimate_optimization(
+    kernel: Kernel, sampled_pts: np.ndarray, est: str = "support"
+):
+    """Distribution estimate by optimization.
+
+    Args:
+        kernel (Kernel): Kernel to use.
+        sampled_pts (np.ndarray): The input space points sampled from a distribution of interest.
+        est (str, optional): The type of estimate. Defaults to "support", in which case the estimate is the support of the distribution. The other option is "density", in which case the estimate is the density of the distribution from which the samples were drawn.
+    """
+
     def __casted_output(function):
         return lambda x: onp.asarray(function(x), dtype=np.float64)
 
-    G = kernel(support_points).astype(np.float64)
+    G = kernel(sampled_pts).astype(np.float64)
 
     if est == "support":
         # solution evaluated in support points should be positive constant
@@ -259,11 +399,11 @@ def distr_estimate_optimization(kernel, support_points, est="support"):
         def cost(f):
             return -log(dot(f, G)).sum()
 
-    bounds = [(0.0, None)] * len(support_points)
+    bounds = [(0.0, None)] * len(sampled_pts)
 
     res = osp.optimize.minimize(
         __casted_output(cost),
-        rand(len(support_points)) + 0.0001,
+        rand(len(sampled_pts)) + 0.0001,
         jac=__casted_output(grad(cost)),
         bounds=bounds,
     )
@@ -276,9 +416,19 @@ VleftT = TypeVar("VleftT", bound=Vec)
 
 
 class CombVec(Vec, Generic[VrightT, VleftT]):
+    """Combination of two vectors by applying an operation like addition or multiplication to the gram matrices resulting from the two vectors."""
+
     def __init__(
         self, vR: VrightT, vL: VleftT, operation: Callable, reduce: List[Reduce] = []
     ):
+        """Constructor.
+
+        Args:
+            vR (VrightT): The right vector.
+            vL (VleftT): The left vector.
+            operation (Callable): The operation to apply to the gram matrices.
+            reduce (List[Reduce], optional): The reduction to apply to the gram matrix resulting from combination of the original gram matrices. Defaults to [].
+        """
         super().__init__()
         assert len(vR) == len(vL)
         self.vR, self.vL = vR, vL
@@ -286,11 +436,31 @@ class CombVec(Vec, Generic[VrightT, VleftT]):
         self.operation = operation
         self.__len = Reduce.final_len(len(self.vR), reduce)
 
-    def reduce_gram(self, gram, axis=0):
+    def reduce_gram(self, gram: np.ndarray, axis: np.uint = 0) -> np.ndarray:
+        """Reduce the gram matrix.
+
+        Args:
+            gram (np.ndarray): The raw (unreduced) gram matrix.
+            axis (np.uint, optional): The axis to reduce. Defaults to 0.
+
+        Returns:
+            np.ndarray: The reduced gram matrix.
+        """
         return Reduce.apply(gram, self.reduce, axis)
 
     # @partial(jax.jit, static_argnums=(0, 1))
-    def inner(self, Y: "CombVec[VrightT, VleftT]" = None, full=True):
+    def inner(
+        self, Y: "CombVec[VrightT, VleftT]" = None, diag: bool = False
+    ) -> np.ndarray:
+        """Inner product of two vectors.
+
+        Args:
+            Y (CombVec[VrightT, VleftT], optional): The other vector. Defaults to None, in which case `Y = self`.
+            diag (bool, optional): Whether to return the diagonal of the gram matrix. Defaults to False.
+
+        Returns:
+            np.ndarray: The inner product.
+        """
         if Y is None:
             Y = self
         else:
@@ -299,21 +469,34 @@ class CombVec(Vec, Generic[VrightT, VleftT]):
             Y.reduce_gram(self.operation(self.vR.inner(Y.vR), self.vL.inner(Y.vL)), 1),
             0,
         )
-        if full:
-            return rval
-        else:
+        if diag:
             return np.diagonal(rval)
+
+        return rval
 
     @partial(jax.jit, static_argnums=(0))
     def diag_inner(
         self,
-    ):
+    ) -> np.ndarray:
+        """Diagonal of the inner product of this vector with itself.
+
+        Returns:
+            np.ndarray: Diagonal of the inner product.
+        """
         rval = self.reduce_gram(
             self.reduce_gram(self.operation(self.vR.inner(), self.vL.inner()), 1), 0
         )
         return np.diagonal(rval)
 
     def extend_reduce(self, r: List[Reduce]) -> "CombVec":
+        """Copy of this vector with additional reductions.
+
+        Args:
+            r (List[Reduce]): The additional reductions.
+
+        Returns:
+            CombVec: The copy with additional reductions.
+        """
         if r is None or len(r) == 0:
             return self
         else:
@@ -322,17 +505,34 @@ class CombVec(Vec, Generic[VrightT, VleftT]):
             return CombVec(self.vR, self.vL, self.operation, _r)
 
     def centered(self) -> "CombVec":
+        """Centered version of this vector.
+
+        Returns:
+            CombVec: The centered vector.
+        """
         return self.extend_reduce([Center()])
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Length of this vector.
+
+        Returns:
+            int: The length.
+        """
         if self.reduce is None:
             return len(self.vR)
         else:
             return self.__len
 
-    def updated(self, prefactors):
+    def updated(self, prefactors) -> "CombVec":
+        """Update the vector with new prefactors.
+
+        Args:
+            prefactors (np.ndarray): The new prefactors.
+
+        Returns:
+            CombVec: The updated vector.
+
+        Raises:
+            NotImplementedError: This method is not implemented for this class.
+        """
         raise NotImplementedError()
-
-
-def inner(X, Y=None, full=True):
-    return X.inner(Y, full)

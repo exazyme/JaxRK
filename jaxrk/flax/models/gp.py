@@ -1,6 +1,5 @@
 from typing import Any
 from .base_rkhs import RkhsVecEncoder
-import datasets as ds
 import flax.linen as nn
 
 from ...models import gp as jax_gp

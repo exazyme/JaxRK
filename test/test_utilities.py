@@ -33,7 +33,7 @@ def test_dist():
             ground_truth = cdist(*dist_args, name)
             d = dist(*dist_args, power=pow)
             print("*", name, pow, np.abs(ground_truth - d).max())
-            assert allclose(ground_truth, d, atol=1e-05)
+            assert allclose(ground_truth, d, atol=1e-03)
 
     print(
         "Testing distance computation between vectors of RKHS elements", file=sys.stderr

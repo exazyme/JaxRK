@@ -10,6 +10,8 @@ import jax.lax as lax
 
 
 class SoftPlus(Bijection):
+    """The SoftPlus bijection and its inverse."""
+
     def __call__(self, x: ArrayOrFloatT) -> ArrayOrFloatT:
         """Map a real number to a non-negative number using the softplus function defined as
         f(x) = log(1 + exp(x))
@@ -35,6 +37,8 @@ class SoftPlus(Bijection):
 
 
 class SquarePlus(Bijection):
+    """The SquarePlus bijection and its inverse. Faster to compute than the SoftPlus bijection."""
+
     def __call__(self, x: ArrayOrFloatT) -> ArrayOrFloatT:
         """Map a real number to a non-negative number using the squareplus function.
         f(x) = (x + sqrt(x**2 + 4))/2
@@ -62,6 +66,8 @@ class SquarePlus(Bijection):
 
 
 class SquareSquash(Bijection):
+    """The SquareSquash bijection and its inverse."""
+
     def __call__(self, x: ArrayOrFloatT) -> ArrayOrFloatT:
         """Map a real number to the intervall (0,1) using the square squash function defined as
         f(x) = (1 + x/sqrt(4 + x**2))/2
@@ -92,6 +98,8 @@ class SquareSquash(Bijection):
 
 
 class SquashingToBounded(Bijection):
+    """The SquashingToBounded bijection and its inverse. Generalizes the SquareSquash bijection to arbitrary intervalls."""
+
     def __init__(
         self, lower_bound: float, upper_bound: float, bij: Bijection = SquareSquash()
     ):
@@ -132,6 +140,8 @@ class SquashingToBounded(Bijection):
 
 
 class NonnegToLowerBd(Bijection):
+    """Convert a bijection where the forward maps to nonnegative numbers into one that with a forward mapping to the intervall [lower_bound, inf)."""
+
     def __init__(self, lower_bound: float = 0.0, bij: Bijection = SquarePlus()):
         assert lower_bound is not None
         self.lower_bound = lower_bound
@@ -160,22 +170,64 @@ class NonnegToLowerBd(Bijection):
 
 
 class FlipLowerToUpperBound(Bijection):
+    """Flip a bijection, so that lower becomes an upper bound."""
+
     def __init__(self, upper_bound: float, lb_bij: Callable[..., Bijection]):
+        """Constructor for FlipLowerToUpperBound.
+
+        Args:
+            upper_bound (float): The upper bound.
+            lb_bij (Callable[..., Bijection]): The bijection that expects a lower bound as input.
+        """
         assert upper_bound is not None
         self.lb = lb_bij(-upper_bound)
 
     def __call__(self, x: ArrayOrFloatT) -> ArrayOrFloatT:
+        """Map a real number x to a half open intervall (-inf, upper_bound).
+
+        Args:
+            x (ArrayOrFloatT):  A float or Array.
+
+        Returns:
+            ArrayOrFloatT: A float or Array (depending on the input).
+        """
         return -self.lb.__call__(-x)
 
     def inv(self, y: ArrayOrFloatT) -> ArrayOrFloatT:
+        """Map a number in the intervall (-inf, upper_bound) to a real number.
+
+        Args:
+            y (ArrayOrFloatT): A float or Array.
+
+        Returns:
+            ArrayOrFloatT: A float or Array (depending on the input).
+        """
         return -self.lb.inv(-y)
 
 
-def NonnegToUpperBd(upper_bound: float = 0.0):
+def NonnegToUpperBd(upper_bound: float = 0.0) -> Bijection:
+    """Convert a bijection where the forward maps to nonnegative numbers into one that with a forward mapping to the intervall (-inf, upper_bound].
+
+    Args:
+        upper_bound (float, optional): The upper bound. Defaults to 0.0.
+
+    Returns:
+        Bijection: The bijection mapping to nonnegative numbers.
+    """
     return FlipLowerToUpperBound(upper_bound, NonnegToLowerBd)
 
 
 def SoftBound(l: float = None, u: float = None) -> Bijection:
+    """Create a bijection that maps to the intervall [l, u] using a softplus function.
+    At least one of lower or upper bound must be specified.
+
+    Args:
+        l (float, optional): Lower bound. Defaults to None, in which case it is set to -inf.
+        u (float, optional): Upper bound. Defaults to None, in which case it is set to inf.
+
+    Returns:
+        Bijection:
+    """
     if l is None:
         assert u is not None, "Requiring one bound."
         return NonnegToUpperBd(u)
@@ -188,29 +240,87 @@ def SoftBound(l: float = None, u: float = None) -> Bijection:
 
 @dataclass
 class CholeskyBijection(Bijection):
+    """The CholeskyBijection and its inverse, mapping unconstrained parameters to a lower triangular cholesky factor in the forward mapping."""
+
     diag_bij: Bijection = NonnegToLowerBd(bij=SquarePlus())
     lower: bool = True
 
-    def is_standard(self, inp):
+    def is_standard(self, inp: Array) -> bool:
+        """Check if the input is a standard cholesky factor.
+
+        Args:
+            inp (Array): The input.
+
+        Returns:
+            bool: True if the input is a standard cholesky factor.
+        """
         return len(inp.shape) == 2 and inp.shape[0] == inp.shape[1]
 
-    def is_symmetric(self, inp):
+    def is_symmetric(self, inp: Array) -> bool:
+        """Check if the input is a symmetric matrix.
+
+        Args:
+            inp (Array): The input.
+
+        Returns:
+            bool: True if the input is a symmetric matrix.
+        """
         return self.is_standard(inp) and np.allclose(inp, inp.T)
 
-    def is_param(self, inp):
+    def is_param(self, inp: Array) -> bool:
+        """Check if the input is a parameter vector.
+
+        Args:
+            inp (Array): The input.
+
+        Returns:
+            bool: True if the input is a parameter vector.
+        """
         return self.is_standard(inp) and np.allclose(inp, np.tril(inp))
 
-    def is_chol(self, inp):
+    def is_chol(self, inp: Array) -> bool:
+        """Check if the input is a cholesky factor.
+
+        Args:
+            inp (Array): The input.
+
+        Returns:
+            bool: True if the input is a cholesky factor.
+        """
         return self.is_param(inp) and np.all(np.diagonal(inp) > 0)
 
-    def param_to_chol(self, param):
+    def param_to_chol(self, param: Array) -> Array:
+        """Convert a parameter vector to a cholesky factor.
+
+        Args:
+            param (Array): The parameter vector.
+
+        Returns:
+            Array: The cholesky factor.
+        """
         return np.tril(param, -1) + np.diagflat(self.diag_bij(np.diagonal(param)))
 
-    def psd_to_param(self, psd_matr):
+    def psd_to_param(self, psd_matr: Array) -> Array:
+        """Map a positive semidefinite matrix to an unconstrained parameter vector.
+
+        Args:
+            psd_matr (Array): The positive semidefinite matrix.
+
+        Returns:
+            Array: The unconstrained parameter vector.
+        """
         L = sp.linalg.cholesky(psd_matr, lower=True)
         return self.chol_to_param(L)
 
-    def chol_to_param(self, chol):
+    def chol_to_param(self, chol: Array) -> Array:
+        """Map a lower cholesky factor to an unconstrained parameter vector.
+
+        Args:
+            chol (Array): The cholesky factor.
+
+        Returns:
+            Array: The unconstrained parameter vector.
+        """
         return np.tril(chol, -1) + np.diagflat(self.diag_bij.inv(np.diagonal(chol)))
 
     def __call__(self, x: Array) -> Array:

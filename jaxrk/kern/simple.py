@@ -18,16 +18,28 @@ from ..utilities.views import tile_view
 
 
 class FeatMapKernel(Kernel):
-    def __init__(self, feat_map: Callable[[Array], Array] = None):
+    """A kernel that is defined by a feature map."""
+
+    def __init__(self, feat_map: Callable[[Array], Array]):
         """A kernel that is defined by a feature map.
 
         Args:
             feat_map: A callable that computes the feature map, i.e. given input space points it returns real valued features, one per input space point."""
-
-        assert feat_map is not None
         self.feat_map = feat_map
 
-    def __call__(self, X, Y=None, diag=False):
+    def __call__(
+        self, X: np.ndarray, Y: np.ndarray = None, diag: bool = False
+    ) -> np.ndarray:
+        """Evaluate the kernel function.
+
+        Args:
+            X (np.ndarray): First input data.
+            Y (np.ndarray, optional): Second input data. Defaults to None, in which case X = Y.
+            diag (bool, optional): Whether to return the diagonal of the gram matrix. Defaults to False.
+
+        Returns:
+            np.ndarray: Gram matrix or its diagonal.
+        """
         f_X = self.feat_map(X)
         if Y is None:
             f_Y = f_X
@@ -43,7 +55,9 @@ LinearKernel = partial(FeatMapKernel, feat_map=lambda x: x)
 
 
 class DictKernel(Kernel):
-    """Kernel for a fixed dictionary of input space values and accompanying gram values. Example:
+    """Kernel for a fixed dictionary of input space values and accompanying gram values.
+
+    Example:
     ```
         k = DictKernel(np.array([1,3]), np.array([(2, -1), (-1, 1.2)]))
         assert k(np.array(1), np.array(1)) == 2
@@ -51,9 +65,6 @@ class DictKernel(Kernel):
         assert k(np.array(3), np.array(3)) == 1.2
         k(np.array(2), np.array(3)) #this will throw an exception, as 2 is not a valid inspace value
     ```
-    Args:
-        gram_values: A square, positive semidefinite matrix.
-        cholesky_lower: A square lower cholesky factor.
     """
 
     def __init__(
@@ -63,6 +74,14 @@ class DictKernel(Kernel):
         cholesky_lower: Array = None,
         drop_neg_gram=True,
     ):
+        """Constructor for DictKernel.
+
+        Args:
+            inspace_vals (Array): Input space values.
+            gram_values (Array, optional): A square, positive semidefinite matrix. If `None`, `cholesky_lower` is used.
+            cholesky_lower (Array, optional): A square lower cholesky factor. If `None`, `gram_values` is used.
+            drop_neg_gram (bool, optional): Drop negative gram values from `inspace_vals`. Defaults to True.
+        """
         super().__init__()
 
         assert (
@@ -111,7 +130,19 @@ class DictKernel(Kernel):
         chol_bij = CholeskyBijection(diag_bij=diag_bij)
         return cls(gram_values=chol_bij(cholesky_lower))
 
-    def __call__(self, idx_X, idx_Y=None, diag=False):
+    def __call__(
+        self, idx_X: np.ndarray, idx_Y: np.ndarray = None, diag: bool = False
+    ) -> np.ndarray:
+        """Evaluate the kernel function.
+
+        Args:
+            idx_X (np.ndarray): Indices of first input data array.
+            idx_Y (np.ndarray, optional): Indices of second input data array. Defaults to None, in which case X = Y.
+            diag (bool, optional): Whether to return the diagonal of the gram matrix. Defaults to False.
+
+        Returns:
+            np.ndarray: Gram matrix or its diagonal.
+        """
         assert (len(np.shape(idx_X)) == 2) and (
             idx_Y is None or len(np.shape(idx_Y)) == 2
         )

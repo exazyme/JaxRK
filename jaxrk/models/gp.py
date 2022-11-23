@@ -1,12 +1,12 @@
+from collections import namedtuple
 from functools import partial
 
-from jaxrk.reduce.lincomb import LinearReduce
 from ..rkhs import FiniteVec
 from ..core.typing import Array
 from ..utilities import cv
 import jax.numpy as np
 import jax.scipy as sp
-from typing import Any, Callable
+from typing import Any, Callable, Union
 from jaxrk.rkhs import Cov_regul
 import jax
 
@@ -47,14 +47,27 @@ def gp_loglhood_mean0(y: Array, cov_chol: Array, prec_y: Array = None) -> float:
         prec_y (Array, optional): The product of precision matrix and y. Defaults to None, in which case it is calculated from the other arguments.
 
     Returns:
-        float: Log likelihood of all
+        float: Log likelihood
     """
     return gp_loglhood_mean0_univ(y, cov_chol, prec_y).sum()
 
 
-def gp_init(x_inner_x: Array, y: Array, noise: float, normalize_y: bool = False):
-    def self(x):
-        return None
+GPInitParams = namedtuple(
+    "GPInitParams", ["chol", "y", "prec_y", "ymean", "ystd", "noise"]
+)
+
+
+def gp_init(
+    x_inner_x: Array, y: Array, noise: float, normalize_y: bool = False
+) -> GPInitParams:
+    """Compute the initial parameters for a GP regression model.
+
+    Args:
+        x_inner_x (Array): The inner product matrix of the input data.
+        y (Array): The observed values.
+        noise (float): The noise level/regularization parameter.
+        normalize_y (bool, optional): Whether to normalize the output values. Defaults to False.
+    """
 
     # print("noise is ", noise)
     if noise is None:
@@ -83,7 +96,7 @@ def gp_init(x_inner_x: Array, y: Array, noise: float, normalize_y: bool = False)
     # matrix product of precision matrix and y. Called alpha in sklearn
     # implementation
     prec_y = sp.linalg.cho_solve((chol, True), y)
-    return chol, y, prec_y, ymean, ystd, noise
+    return GPInitParams(chol, y, prec_y, ymean, ystd, noise)
 
 
 def gp_predictive_mean_univ(
@@ -91,7 +104,18 @@ def gp_predictive_mean_univ(
     train_prec_y: Array,
     outp_mean: Array = np.zeros(1),
     outp_std: Array = np.ones(1),
-):
+) -> Array:
+    """Predictive mean for a univariate GP.
+
+    Args:
+        gram_train_test (Array): The inner product matrix between the training and test data.
+        train_prec_y (Array): The product of the precision matrix and the training data.
+        outp_mean (Array, optional): The mean of the output of the univariate GP. Defaults to np.zeros(1).
+        outp_std (Array, optional): The standard deviation of the output of the univariate GP. Defaults to np.ones(1).
+
+    Returns:
+        Array: The predictive mean for each univariate GP.
+    """
     return outp_mean + outp_std * np.dot(gram_train_test.T, train_prec_y)
 
 
@@ -100,7 +124,17 @@ gp_predictive_mean = jax.vmap(gp_predictive_mean_univ, (None, 1, 1, 1), 1)
 
 def gp_predictive_cov_univ_chol(
     gram_train_test: Array, gram_test: Array, chol_gram_train: Array
-):
+) -> Array:
+    """Predictive covariance for a univariate GP using the cholesky factor of the gram matrix of the training data.
+
+    Args:
+        gram_train_test (Array): The inner product matrix between the training and test data.
+        gram_test (Array): The inner product matrix of the test data.
+        chol_gram_train (Array): The cholesky factor of the inner product matrix of the training data.
+
+    Returns:
+        Array: The predictive covariance for the univariate GP.
+    """
     v = sp.linalg.cho_solve((chol_gram_train, True), gram_train_test)
     return gram_test - np.dot(gram_train_test.T, v)
 
@@ -108,6 +142,15 @@ def gp_predictive_cov_univ_chol(
 def gp_predictive_cov_univ_inv(
     gram_train_test: Array, gram_test: Array, inv_gram_train: Array
 ):
+    """Predictive covariance for a univariate GP using the inverse of the gram matrix of the training data.
+    Args:
+        gram_train_test (Array): The inner product matrix between the training and test data.
+        gram_test (Array): The inner product matrix of the test data.
+        chol_gram_train (Array): The cholesky factor of the inner product matrix of the training data.
+
+    Returns:
+        Array: The predictive covariance for the univariate GP.
+    """
     return gram_test - gram_train_test.T @ inv_gram_train @ gram_train_test
 
 
@@ -117,33 +160,86 @@ def gp_predictive_cov_univ(
     inv_gram_train: Array = None,
     chol_gram_train: Array = None,
 ):
+    """Predictive covariance for a univariate GP using either the inverse or cholesky of the gram matrix of the training data.
+
+    Args:
+        gram_train_test (Array): The inner product matrix between the training and test data.
+        gram_test (Array): The inner product matrix of the test data.
+        inv_gram_train (Array, optional): The inverse of the inner product matrix of the training data. Defaults to None, in which case the cholesky factor is used.
+        chol_gram_train (Array): The cholesky factor of the inner product matrix of the training data. Defaults to None, in which case the inverse is used.
+
+    Returns:
+        Array: The predictive covariance for the univariate GP.
+    """
     if chol_gram_train is None:
         return gp_predictive_cov_univ_inv(gram_train_test, gram_test, inv_gram_train)
     return gp_predictive_cov_univ_chol(gram_train_test, gram_test, chol_gram_train)
 
 
 @partial(jax.vmap, in_axes=(None, 1), out_axes=2)
-def scale_dims(inp, scale_per_dim) -> np.ndarray:
+def scale_dims(inp: np.ndarray, scale_per_dim: np.ndarray) -> np.ndarray:
+    """Scale the input data by a different scale for each dimension.
+
+    Args:
+        inp (np.ndarray): The input data.
+        scale_per_dim (np.ndarray): The scale for each dimension.
+
+    Returns:
+        np.ndarray: The scaled input data.
+    """
     return inp * scale_per_dim
 
 
 @partial(jax.vmap, in_axes=(None, -1), out_axes=2)
-def scale_dims_inv(inp, scale_per_dim) -> np.ndarray:
-    return inp / scale_per_dim
+def scale_dims_inv(scaled_inp, scale_per_dim) -> np.ndarray:
+    """Inverse scaling of the input data given the scale for each dimension.
+
+    Args:
+        scaled_inp (np.ndarray): The scaled input data.
+        scale_per_dim (np.ndarray): The scale for each dimension.
+
+    Returns:
+        np.ndarray: The input data without scaling.
+    """
+    return scaled_inp / scale_per_dim
 
 
 # @partial(jax.vmap, in_axes = (None, 1, 1), out_axes = 1)
 
 
-def scale_and_shift_dims(inp, shift_per_dim, scale_per_dim) -> np.ndarray:
+def scale_and_shift_dims(
+    inp: np.ndarray, shift_per_dim: np.ndarray, scale_per_dim: np.ndarray
+) -> np.ndarray:
+    """Scale and shift the input data by a different scale and shift for each dimension.
+
+    Args:
+        inp (np.ndarray): The input data.
+        shift_per_dim (np.ndarray): The shift for each dimension.
+        scale_per_dim (np.ndarray): The scale for each dimension.
+
+    Returns:
+        np.ndarray: The scaled and shifted input data.
+    """
     return inp * scale_per_dim + shift_per_dim
 
 
 # @partial(jax.vmap, in_axes = (None, 1, 1), out_axes = 1)
 
 
-def scale_and_shift_dims_inv(inp, shift_per_dim, scale_per_dim) -> np.ndarray:
-    return (inp - shift_per_dim) / scale_per_dim
+def scale_and_shift_dims_inv(
+    scaled_shifted_inp: np.ndarray, shift_per_dim: np.ndarray, scale_per_dim: np.ndarray
+) -> np.ndarray:
+    """Inverse scaling and shifting of the input data given the scale and shift for each dimension.
+
+    Args:
+        scaled_shifted_inp (np.ndarray): The scaled and shifted input data.
+        shift_per_dim (np.ndarray): The shift for each dimension.
+        scale_per_dim (np.ndarray): The scale for each dimension.
+
+    Returns:
+        np.ndarray: The input data without scaling and shifting.
+    """
+    return (scaled_shifted_inp - shift_per_dim) / scale_per_dim
 
 
 # gp_predictive_cov = jax.vmap(gp_predictive_cov_univ, (None, None, None, None, 1), 2)
@@ -158,7 +254,18 @@ def gp_predictive_mean(
     train_prec_y: Array,
     y_mean: Array = np.zeros(1),
     y_std: Array = np.ones((1, 1)),
-):
+) -> Array:
+    """Predictive mean for univariate GPs all with the same kernel but different mean and variance per dimension.
+
+    Args:
+        gram_train_test (Array): The inner product matrix between the training and test data.
+        train_prec_y (Array): The precision of the training data.
+        y_mean (Array, optional): The mean of the training data output dimensions. Defaults to np.zeros(1).
+        y_std (Array, optional): The standard deviation of the training data output dimensions. Defaults to np.ones((1, 1)).
+
+    Returns:
+        Array: The predictive means for the univariate GPs.
+    """
     m = gp_predictive_mean_univ(gram_train_test, train_prec_y)
     return scale_and_shift_dims(m, y_mean, y_std)
 
@@ -202,6 +309,7 @@ def gp_predictive_var(
     y_std: Array = np.ones((1, 1)),
 ):
     """Compute the predictive variance for a GP.
+
     Args:
         gram_train_test (Array): Gram matrix train x test
         gram_test (Array): Gram matrix test x test
@@ -231,7 +339,21 @@ def gp_predictive(
     y_mean: Array = np.zeros(1),
     y_std: Array = np.ones(1),
     y_test: Array = None,
-):
+) -> Union[tuple[Array, Array], tuple[Array, Array, float]]:
+    """Predictive mean and variance for a GP. if `y_test` is not None, the log marginal likelihood is also computed.
+
+    Args:
+        gram_train_test (Array): Gram matrix train x test
+        gram_test (Array): Gram matrix test x test
+        chol_gram_train (Array): Cholesky of gram matrix train x train
+        train_prec_y (Array): Precision of training data
+        y_mean (Array, optional): Mean of training data. Defaults to np.zeros(1).
+        y_std (Array, optional): Standard deviation of training data. Defaults to np.ones(1).
+        y_test (Array, optional): Test data. If not None, the log marginal likelihood is computed. Defaults to None.
+
+    Returns:
+        Union[tuple[Array, Array], tuple[Array, Array, float]]: Predictive mean and variance and potentially log marginal likelihood.
+    """
     m = gp_predictive_mean_univ(gram_train_test, train_prec_y)
     cov = gp_predictive_cov_univ_chol(gram_train_test, gram_test, chol_gram_train)
     pred_m, pred_cov = scale_and_shift_dims(m, y_mean, y_std), scale_dims(cov, y_std**2)
@@ -361,7 +483,8 @@ vmap_gp_val_dcg = jax.jit(
 # vmap_gp_val_kendall = jax.jit(jax.vmap(partial(gp_val_loss, loss = UcbRankLoss(stats.kendalls_tau, 0.)), (0, 0, None, None, None)))
 vmap_gp_val_rank = jax.jit(
     jax.vmap(
-        partial(gp_val_loss, loss=UcbRankLoss(condis_loss, 0.0)), (0, 0, None, None, None)
+        partial(gp_val_loss, loss=UcbRankLoss(condis_loss, 0.0)),
+        (0, 0, None, None, None),
     )
 )
 vmap_gp_val_rho = jax.jit(
@@ -422,7 +545,17 @@ def gp_cv_val_lhood(
 
 
 class GP(object):
+    """Gaussian Process Regression class"""
+
     def __init__(self, x: FiniteVec, y: Array, noise: float, normalize_y: bool = False):
+        """Constructor for GP class
+
+        Args:
+            x (FiniteVec): JaxRk FiniteVec object of length n
+            y (Array): Array of shape (n, 1) or (n,) containing the target values
+            noise (float): Noise level/regularization parameter
+            normalize_y (bool, optional): Whether to normalize the y values. Defaults to False.
+        """
         self.x = x
         self.x_inner_x = x.inner()
         self.chol, self.y, self.prec_y, self.ymean, self.ystd, self.noise = gp_init(
@@ -431,13 +564,32 @@ class GP(object):
 
     def __str__(
         self,
-    ):
+    ) -> str:
+        """Compute string representation
+
+        Returns:
+            str: String representation of GP object
+        """
         return f"μ_Y = {self.ymean.squeeze()} ± σ_Y ={self.ystd.squeeze()}, σ_noise: {self.noise}, trace_chol: {self.chol.trace().squeeze()} trace_xx^t: {self.x_inner_x.trace().squeeze()}, {self.x_inner_x[0,:5]}, {self.x_inner_x.shape}"
 
-    def marginal_loglhood(self):
+    def marginal_loglhood(self) -> float:
+        """Compute the marginal log-likelihood of the GP
+
+        Returns:
+            float: Marginal log-likelihood
+        """
         return gp_loglhood_mean0(self.y, self.chol, self.prec_y)
 
-    def predict(self, xtest: FiniteVec, diag=True):
+    def predict(self, xtest: FiniteVec, diag=True) -> tuple[Array, Array]:
+        """Compute predictive mean and (co)variance of the GP
+
+        Args:
+            xtest (FiniteVec): Test points given as a vector of RKHS points (i.e. a FiniteVec object)
+            diag (bool, optional): Whether to compute only the diagonal of the predictive covariance matrix. Defaults to True.
+
+        Returns:
+            tuple[Array, Array]: Predictive mean and variance or covariance matrix
+        """
         pred_m, pred_cov = gp_predictive(
             self.x.inner(xtest),
             xtest.inner(),
@@ -451,6 +603,15 @@ class GP(object):
         return pred_m, pred_cov
 
     def post_pred_likelihood(self, xtest: FiniteVec, ytest: Array):
+        """Compute the log-likelihood of the test data given the GP
+
+        Args:
+            xtest (FiniteVec): Test points given as a vector of RKHS points (i.e. a FiniteVec object)
+            ytest (Array): Test targets
+
+        Returns:
+            tuple[Array, Array, float]: Predictive mean, variance and log marginal likelihood.
+        """
         return gp_predictive(
             self.x.inner(xtest),
             xtest.inner(),

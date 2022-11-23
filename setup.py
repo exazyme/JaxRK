@@ -12,7 +12,15 @@ setup(
     url="https://github.com/ingmarschuster/jaxrk",
     download_url="https://github.com/zalandoresearch/jaxrk/v_01.tar.gz",
     keywords=["Jax", "RKHS", "kernel"],
-    install_requires=["jax", "numpy", "scipy", "matplotlib", "flax==0.4.0"],
+    install_requires=[
+        "jax",
+        "numpy",
+        "scipy",
+        "matplotlib",
+        "flax",
+        "optax",
+        "jaxopt",
+    ],
     classifiers=[
         # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as
         # the current state of your package

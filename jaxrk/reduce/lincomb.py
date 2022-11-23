@@ -25,36 +25,6 @@ def compute_slices(l: List[int]):
     return np.vstack([prepend_0, cs]).T
 
 
-class LinearReduce(Reduce):
-    def __init__(self, linear_map: Array):
-        super().__init__()
-        self.linear_map = linear_map
-
-    def reduce_first_ax(self, inp: Array):
-        assert len(inp.shape) == 2
-        assert self.linear_map.shape[-1] == inp.shape[0]
-        return self.linear_map @ inp
-
-    def new_len(self, original_len: int):
-        assert (self.linear_map.shape[-1]) == original_len, (
-            self.__class__.__name__
-            + " expects a gram with %d columns" % self.linear_map.shape[1]
-        )
-        return self.linear_map.shape[-2]
-
-    @classmethod
-    def sum_from_unique(
-        cls, input: Array, mean: bool = True
-    ) -> Tuple[np.array, np.array, "LinearReduce"]:
-        un, cts = np.unique(input, return_counts=True)
-        un_idx = [np.argwhere(input == un[i]).flatten() for i in range(un.size)]
-        m = np.zeros((len(un_idx), input.shape[0]))
-        for i, idx in enumerate(un_idx):
-            b = np.ones(int(cts[i].squeeze())).squeeze()
-            m = m.at[i, idx.squeeze()].set(b / cts[i].squeeze() if mean else b)
-        return un, cts, LinearReduce(m)
-
-
 # ListOfArray_or_Array_T = TypeVar("CombT", List[Array], Array)
 
 
@@ -108,9 +78,12 @@ class SparseReduce(LinearizableReduce):
         )
         return len(self.idcs)
 
-    def linearize(self, inp_shape: tuple) -> np.array:
-        n_out = np.sum(np.array([len(i) for i in self.idcs]))
+    def linmap(self, inp_shape: tuple, axis: int = 0) -> np.array:
         n_in = self.max_idx + 1
+        assert inp_shape[axis] == n_in, ValueError(
+            "Input shape does not match reduction assumptions"
+        )
+        n_out = np.sum(np.array([len(i) for i in self.idcs]))
         offset = 0
         lin_map = np.zeros((n_out, n_in))
         for i in range(len(self.idcs)):
@@ -125,9 +98,6 @@ class SparseReduce(LinearizableReduce):
                 )
             offset += self.idcs[i].shape[0]
         return lin_map
-
-    def to_linear(self, inp_shape: tuple = None) -> "LinearReduce":
-        return LinearReduce(self.linearize(None))
 
     @classmethod
     def sum_from_unique(

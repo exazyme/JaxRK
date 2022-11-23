@@ -1,5 +1,6 @@
 import jax.numpy as np
 from typing import Any, Tuple, Callable, Union, TypeVar
+from abc import ABC, abstractmethod
 
 __all__ = [
     "Bijection",
@@ -29,9 +30,29 @@ AnyOrInitFn = Union[Any, InitFn]
 ArrayOrFloatT = TypeVar("ArrayOrFloatT", np.ndarray, float)
 
 
-class Bijection(object):
-    def __call__(self, x: ArrayOrFloatT) -> ArrayOrFloatT:
-        raise NotImplementedError
+class Bijection(ABC):
+    """A bijection beween two spaces."""
 
+    @abstractmethod
+    def __call__(self, x: ArrayOrFloatT) -> ArrayOrFloatT:
+        """Forward transformation.
+
+        Args:
+            x (ArrayOrFloatT): Input (in space A).
+
+        Returns:
+            ArrayOrFloatT: Output (in space B).
+        """
+        pass
+
+    @abstractmethod
     def inv(self, y: ArrayOrFloatT) -> ArrayOrFloatT:
-        raise NotImplementedError
+        """Inverse transformation.
+
+        Args:
+            y (ArrayOrFloatT): Input (in space B).
+
+        Returns:
+            ArrayOrFloatT: Output (in space A).
+        """
+        pass

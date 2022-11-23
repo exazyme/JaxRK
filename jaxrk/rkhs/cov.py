@@ -1,34 +1,54 @@
 from copy import copy
-from ..reduce.centop_reductions import CenterInpFeat, DecenterOutFeat
-from ..reduce.lincomb import LinearReduce
-from ..reduce.base import Prefactors, Sum
-from typing import Generic, TypeVar, Callable, Union
 
 import jax.numpy as np
 from jax.interpreters.xla import DeviceArray
 from scipy.optimize import minimize
 
-from ..rkhs.vector import FiniteVec, inner
-from ..core.typing import AnyOrInitFn, Array
+from .vector import FiniteVec
+from ..kern import Kernel
 
-from .base import LinOp, RkhsObject, Vec, InpVecT, OutVecT, RhInpVectT, CombT
+from .base import RkhsObject, inner, InpVecT, OutVecT, CombT
 from .operator import FiniteOp
 
 
 def CrossCovOp(inp_feat: InpVecT, outp_feat: OutVecT) -> FiniteOp[InpVecT, OutVecT]:
+    """Construct a cross-covariance operator from two RKHS vectors.
+
+    Args:
+        inp_feat (InpVecT): The input RKHS vector/applied to right-hand of operator.
+        outp_feat (OutVecT): The output RKHS vector/applied to left-hand of operator.
+
+    Returns:
+        FiniteOp[InpVecT, OutVecT]: The cross-covariance operator.
+    """
     assert len(inp_feat) == len(outp_feat)
     N = len(inp_feat)
     return FiniteOp(inp_feat, outp_feat, np.eye(N) / N)
 
 
 def CovOp(inp_feat: InpVecT) -> FiniteOp[InpVecT, InpVecT]:
+    """Construct a covariance operator from an RKHS vector.
+
+    Args:
+        inp_feat (InpVecT): The RKHS vector applied defining left and right-hand of operator.
+
+    Returns:
+        FiniteOp[InpVecT, InpVecT]: The covariance operator.
+    """
     N = len(inp_feat)
     return FiniteOp(inp_feat, inp_feat, np.eye(N) / N)
 
 
 def CovOp_from_Samples(
-    kern, inspace_points, prefactors=None
+    kern: Kernel, inspace_points: np.ndarray
 ) -> FiniteOp[InpVecT, InpVecT]:
+    """Construct a covariance operator from samples.
+
+    Args:
+        kern (Kernel): The kernel used by the covariance operator.
+        inspace_points (np.ndarray): The input space points sampled according to the distribution defining the covariance operator.
+    """
+
     return CovOp(FiniteVec(kern, inspace_points, prefactors))
 
 
@@ -38,7 +58,7 @@ def Cov_regul(
     a: float = 0.49999999999999,
     b: float = 0.49999999999999,
     c: float = 0.1,
-):
+) -> float:
     """Compute the regularizer based on the formula from the Kernel Conditional Density operators paper (Schuster et al., 2020, Corollary 3.4).
 
     smaller c => larger bias, tight stochastic error bounds
@@ -52,7 +72,7 @@ def Cov_regul(
         c (float, optional): Bias/variance tradeoff parameter. Assume c > 0 and c < 1, defaults to 0.1.
 
     Returns:
-        [type]: [description]
+        float: The regularizer.
     """
     if nrefsamps is None:
         nrefsamps = nsamps
@@ -66,12 +86,14 @@ def Cov_regul(
 
 
 def Cov_inv(
-    cov: FiniteOp[InpVecT, InpVecT], regul: float = None
+    cov: FiniteOp[InpVecT, InpVecT], regul: float
 ) -> "FiniteOp[InpVecT, InpVecT]":
     """Compute the inverse of this covariance operator with a certain regularization.
 
     Args:
-        regul (float, optional): Regularization parameter to be used. Defaults to self.regul.
+        cov (FiniteOp[InpVecT, InpVecT]): The covariance operator to invert.
+        regul (float): The regularization parameter.
+
 
     Returns:
         FiniteOp[InpVecT, InpVecT]: The inverse operator
@@ -102,7 +124,9 @@ def Cov_solve(
     where C_ρ is the covariance operator passed as `cov`, and A is given by `lhs`.
 
     Args:
+        cov (FiniteOp[InpVecT, InpVecT]): The covariance operator.
         lhs (CombT): The embedding of the distribution of interest, or the LinOp of interest.
+        regul (float, optional): The regularization parameter. Defaults to None, in which case the regularization is computed automatically based on the assumption that the output RKHS object is a mean embedding.
     """
 
     if isinstance(lhs, FiniteOp):

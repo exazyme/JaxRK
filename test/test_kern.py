@@ -49,7 +49,7 @@ def test_rbf():
 
     for (n, k, v, pdf) in tests:
         # print(n)
-        assert np.abs(v - k.var()) < 1e-4, f"{n}: {v} != {k.var()}"
+        assert np.abs(v - k.var) < 1e-4, f"{n}: {v} != {k.var()}"
         g = k(x)
         assert np.allclose(pdf.squeeze(), g[0, :], atol=1e-1)
 

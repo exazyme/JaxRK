@@ -13,6 +13,7 @@ import jax.scipy as sp
 import jax.scipy.stats as stats
 from jax.numpy import exp, log, sqrt
 from jax.scipy.special import logsumexp
+
 from ..utilities.views import tile_view
 from ..core.typing import PRNGKeyT, Shape, Dtype, Array, ConstOrInitFn
 
@@ -95,13 +96,56 @@ class Reduce(Callable, ABC):
         return carry
 
 
+class LinearReduce(Reduce):
+    def __init__(self, linear_map: Array):
+        super().__init__()
+        self.linear_map = linear_map
+
+    def reduce_first_ax(self, inp: Array):
+        assert len(inp.shape) == 2
+        assert self.linear_map.shape[-1] == inp.shape[0]
+        return self.linear_map @ inp
+
+    def new_len(self, original_len: int):
+        assert (self.linear_map.shape[-1]) == original_len, (
+            self.__class__.__name__
+            + " expects a gram with %d columns" % self.linear_map.shape[1]
+        )
+        return self.linear_map.shape[-2]
+
+    @classmethod
+    def sum_from_unique(
+        cls, input: Array, mean: bool = True
+    ) -> tuple[np.array, np.array, "LinearReduce"]:
+        un, cts = np.unique(input, return_counts=True)
+        un_idx = [np.argwhere(input == un[i]).flatten() for i in range(un.size)]
+        m = np.zeros((len(un_idx), input.shape[0]))
+        for i, idx in enumerate(un_idx):
+            b = np.ones(int(cts[i].squeeze())).squeeze()
+            m = m.at[i, idx.squeeze()].set(b / cts[i].squeeze() if mean else b)
+        return un, cts, LinearReduce(m)
+
+
 class LinearizableReduce(Reduce):
-    @abstractmethod
-    def linearize(self, gram_shape: tuple) -> Array:
-        """Linearized version of reduce_first_ax.
+    def linearize(self, gram_shape: tuple, axis: int = 0) -> LinearReduce:
+        """Linearize the reduction.
 
         Args:
-            gram_shape (tuple): The gram matrix
+            gram_shape (tuple): Shape of the gram matrix.
+            axis (int, optional): Axis to apply reduction over. Defaults to 0.
+
+        Returns:
+            LinearReduce: The linearized reduction.
+        """
+        return LinearReduce(self.linmap(gram_shape, axis))
+
+    @abstractmethod
+    def linmap(self, gram_shape: tuple, axis: int = 0) -> Array:
+        """Linear map equivalent to reduction.
+
+        Args:
+            gram_shape (tuple): The gram matrix shape.
+            axis (int, optional): Axis to apply reduction over. Defaults to 0.
         """
         pass
 
@@ -342,16 +386,17 @@ class TileView(LinearizableReduce):
         )
         return tile_view(inp, self.result_len // inp.shape[0])
 
-    def linearize(self, inp_shape: tuple) -> Array:
-        """Linearize the tile view reduction.
+    def linmap(self, inp_shape: tuple, axis: int = 0) -> Array:
+        """Linear map version of reduce_first_ax for the tile view reduction.
 
         Args:
             inp_shape (tuple): Shape of the input matrix.
+            axis (int, optional): Axis to apply reduction over. Defaults to 0.
 
         Returns:
             Array: A linear operator that can be applied to the input matrix and get a tiled result.
         """
-        return tile_view(np.eye(inp_shape[0]), self.result_len // inp_shape[0])
+        return tile_view(np.eye(inp_shape[axis]), self.result_len // inp_shape[axis])
 
     def new_len(self, original_len: int) -> int:
         """Compute the new length of the array after reduction.
@@ -365,7 +410,7 @@ class TileView(LinearizableReduce):
         return self.result_len
 
 
-class Sum(Reduce):
+class Sum(LinearizableReduce):
     def __call__(self, inp: Array, axis: int = 0) -> Array:
         """Sum the input array.
 
@@ -382,7 +427,7 @@ class Sum(Reduce):
             >>> s = Sum()
             >>> m = jnp.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
             >>> s(m, axis=0)
-            DeviceArray([12, 15, 18], dtype=int32)
+            DeviceArray([[12, 15, 18]], dtype=int32)
             >>> s(m, axis=1)
             DeviceArray([[ 6],
                          [15],
@@ -412,13 +457,20 @@ class Sum(Reduce):
         """
         return 1
 
+    def linmap(self, gram_shape: tuple, axis: int = 0) -> Array:
+        """Linear map version of `Sum` reduction.
 
-#    def linearize(self, gram_shape: tuple) -> Array:
-#        # sum
-#        return np.ones((1, gram_shape[0]))
+        Args:
+            gram_shape (tuple): Shape of the input matrix.
+            axis (int, optional): Axis to apply reduction over. Defaults to 0.
+
+        Returns:
+            Array: A linear operator that can be applied to the input matrix to sum over `axis`.
+        """
+        return np.ones((1, gram_shape[axis]))
 
 
-class Mean(Reduce):
+class Mean(LinearizableReduce):
     def __call__(self, inp: Array, axis: int = 0) -> Array:
         """Average the input array.
 
@@ -453,13 +505,20 @@ class Mean(Reduce):
         """
         return 1
 
+    def linmap(self, gram_shape: tuple, axis: int = 0) -> Array:
+        """Linear map version of mean reduction.
 
-#    def linearize(self, gram_shape: tuple) -> Array:
-#        # mean
-#        return np.ones((gram_shape[0], gram_shape[0])) / gram_shape[1]
+        Args:
+            gram_shape (tuple): Shape of the input matrix.
+            axis (int, optional): Axis to apply reduction over. Defaults to 0.
+
+        Returns:
+            Array: A linear operator that can be applied to the input matrix to average over `axis`.
+        """
+        return np.ones((1, gram_shape[axis])) / gram_shape[axis]
 
 
-class BalancedRed(Reduce):
+class BalancedRed(LinearizableReduce):
     def __init__(self, points_per_split: int, average=False):
         """Sum up a number of elements in the input.
 
@@ -509,17 +568,18 @@ class BalancedRed(Reduce):
         """
         return self.__call__(inp, 0)
 
-    def linearize(self, inp_shape: tuple) -> Array:
-        """Linearize the `BalancedRed` reduction.
+    def linmap(self, inp_shape: tuple, axis: int = 0) -> Array:
+        """Linear map version of `BalancedRed` reduction.
 
         Args:
             inp_shape (tuple): Shape of the input matrix.
+            axis (int, optional): Axis to apply reduction over. Defaults to 0.
 
         Returns:
             Array: A linear operator that can be applied to the input matrix and get the same result as the reduction.
         """
-        new_len = self.new_len(inp_shape[0])
-        rval = np.zeros((new_len, inp_shape[0]))
+        new_len = self.new_len(inp_shape[axis])
+        rval = np.zeros((new_len, inp_shape[axis]))
         for i in range(new_len):
             rval = rval.at[
                 i, i * self.points_per_split : (i + 1) * self.points_per_split
