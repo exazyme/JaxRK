@@ -143,6 +143,12 @@ class NonnegToLowerBd(Bijection):
     """Convert a bijection where the forward maps to nonnegative numbers into one that with a forward mapping to the intervall [lower_bound, inf)."""
 
     def __init__(self, lower_bound: float = 0.0, bij: Bijection = SquarePlus()):
+        """NonnegToLowerBd is a bijection mapping the reals to the intervall [lower_bound, inf) using based on a bijection mapping to nonnegative numbers.
+
+        Args:
+            lower_bound (float, optional): Lower bound of the intervall. Defaults to 0.0.
+            bij (Bijection, optional): Bijection mapping to nonnegative numbers. Defaults to SquarePlus().
+        """
         assert lower_bound is not None
         self.lower_bound = lower_bound
         self.bij = bij

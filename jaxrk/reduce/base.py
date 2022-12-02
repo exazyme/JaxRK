@@ -97,16 +97,39 @@ class Reduce(Callable, ABC):
 
 
 class LinearReduce(Reduce):
+    """Reduction defined by a linear map."""
+
     def __init__(self, linear_map: Array):
+        """Construct a linear reduction.
+
+        Args:
+            linear_map (Array): The linear map to apply as a reduction.
+        """
         super().__init__()
         self.linear_map = linear_map
 
-    def reduce_first_ax(self, inp: Array):
+    def reduce_first_ax(self, inp: Array) -> Array:
+        """Reduce the first axis of the input matrix.
+
+        Args:
+            inp (Array): The array to reduce. Typically a gram matrix.
+
+        Returns:
+            Array: The array reduced along the first axis.
+        """
         assert len(inp.shape) == 2
         assert self.linear_map.shape[-1] == inp.shape[0]
         return self.linear_map @ inp
 
-    def new_len(self, original_len: int):
+    def new_len(self, original_len: int) -> int:
+        """Compute the new length of the array after reduction.
+
+        Args:
+            original_len (int): Original length of the array.
+
+        Returns:
+            int: Length of the array after reduction.
+        """
         assert (self.linear_map.shape[-1]) == original_len, (
             self.__class__.__name__
             + " expects a gram with %d columns" % self.linear_map.shape[1]
@@ -115,14 +138,60 @@ class LinearReduce(Reduce):
 
     @classmethod
     def sum_from_unique(
-        cls, input: Array, mean: bool = True
+        cls, input: Array, mean: bool = True, axis: int = None
     ) -> tuple[np.array, np.array, "LinearReduce"]:
-        un, cts = np.unique(input, return_counts=True)
-        un_idx = [np.argwhere(input == un[i]).flatten() for i in range(un.size)]
-        m = np.zeros((len(un_idx), input.shape[0]))
-        for i, idx in enumerate(un_idx):
-            b = np.ones(int(cts[i].squeeze())).squeeze()
-            m = m.at[i, idx.squeeze()].set(b / cts[i].squeeze() if mean else b)
+        """Find unique vectors in `input` along `axis`, return the unique data points, their counts and a linear reduction that multiplies the (now unique) vectors by their counts.
+
+        Args:
+            input (Array): The input array.
+            mean (bool, optional): Whether to return the mean of the unique rows rather than the sum. Defaults to True.
+            axis (int, optional): Axis to find unique vectors along. Defaults to None, in which case the flattened array is used.
+
+        Returns:
+            tuple[np.array, np.array, "LinearReduce"]: The unique rows, their counts and the linear reduction.
+
+        Example:
+            >>> import jax.numpy as np
+            >>> from jaxrk.reduce.base import LinearReduce
+            >>> input = np.array([[1, 2, 3], [1, 2, 3], [4, 5, 6]])
+            >>> unique, counts, reduction = LinearReduce.sum_from_unique(input, mean=False, axis=None)
+            >>> print(f"{repr(unique)}\n{repr(counts)}\n{repr(reduction.linear_map)}")
+            DeviceArray([1, 2, 3, 4, 5, 6], dtype=int32)
+            DeviceArray([2, 2, 2, 1, 1, 1], dtype=int32)
+            DeviceArray([[1., 0., 0.],
+                         [0., 1., 0.],
+                         [0., 0., 1.],
+                         [0., 0., 0.],
+                         [0., 0., 0.],
+                         [0., 0., 0.]], dtype=float32)
+
+            >>> unique, counts, reduction = LinearReduce.sum_from_unique(input, mean=True, axis=0)
+            >>> print(f"{repr(unique)}\n{repr(counts)}\n{repr(reduction.linear_map)}")
+            DeviceArray([[1, 2, 3],
+                         [4, 5, 6]], dtype=int32)
+            DeviceArray([2, 1], dtype=int32)
+            DeviceArray([[0.5, 0.5, 0. ],
+                         [0. , 0. , 1. ]], dtype=float32)
+
+            >>> unique, counts, reduction = LinearReduce.sum_from_unique(input, mean=True, axis=1)
+            >>> print(f"{repr(unique)}\n{repr(counts)}\n{repr(reduction.linear_map)}")
+            DeviceArray([[1, 2, 3],
+                         [1, 2, 3],
+                         [4, 5, 6]], dtype=int32)
+            DeviceArray([1, 1, 1], dtype=int32)
+            DeviceArray([[1., 0., 0.],
+                         [0., 1., 0.],
+                         [0., 0., 1.]], dtype=float32)
+
+        """
+        un, inv_idx, cts = np.unique(
+            input, return_inverse=True, return_counts=True, axis=axis
+        )
+
+        m = np.zeros((len(un), input.shape[0]))
+        for col, row in enumerate(inv_idx):
+            m = m.at[row, col].set(1.0 / cts[row].squeeze() if mean else 1.0)
+
         return un, cts, LinearReduce(m)
 
 
@@ -207,6 +276,8 @@ class NoReduce(Reduce):
 
 
 class Prefactors(Reduce):
+    """Multiply the input array with a set of prefactors"""
+
     def __init__(self, prefactors: Array):
         """This reduction will multiply the input array with a set of prefactors.
 
@@ -271,6 +342,8 @@ class Prefactors(Reduce):
 
 
 class Scale(Reduce):
+    """Scale the input array by a constant factor."""
+
     def __init__(self, s: float):
         """This reduction will multiply the input array with a constant.
 
@@ -316,6 +389,8 @@ class Scale(Reduce):
 
 
 class Repeat(Reduce):
+    """Repeat the input array."""
+
     def __init__(self, times: int):
         """This reduction will repeat the input array `times` times.
 
@@ -362,6 +437,8 @@ class Repeat(Reduce):
 
 
 class TileView(LinearizableReduce):
+    """Tile the input array. This reduction provides a view on the input array, avoiding data copy."""
+
     def __init__(self, result_len: int):
         """Tile the input array to a new length.
 
@@ -411,6 +488,8 @@ class TileView(LinearizableReduce):
 
 
 class Sum(LinearizableReduce):
+    """Sum the input array."""
+
     def __call__(self, inp: Array, axis: int = 0) -> Array:
         """Sum the input array.
 
@@ -471,6 +550,8 @@ class Sum(LinearizableReduce):
 
 
 class Mean(LinearizableReduce):
+    """Average the input array."""
+
     def __call__(self, inp: Array, axis: int = 0) -> Array:
         """Average the input array.
 
@@ -519,6 +600,8 @@ class Mean(LinearizableReduce):
 
 
 class BalancedRed(LinearizableReduce):
+    """Balanced reduction of the input array. Sum the input array (and potentially divide by the number of elements)."""
+
     def __init__(self, points_per_split: int, average=False):
         """Sum up a number of elements in the input.
 
@@ -600,6 +683,8 @@ class BalancedRed(LinearizableReduce):
 
 
 class Center(Reduce):
+    """Center the input array by subtracting the mean."""
+
     def __call__(self, inp: Array, axis: int = 0) -> Array:
         """Center input along axis.
 

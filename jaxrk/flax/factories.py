@@ -265,7 +265,15 @@ class DictKernFactory(Factory[DictKernel]):
             )
         )
 
-        def init_fn(rng):
+        def init_fn(rng) -> Array:
+            """Initialize the gram matrix using the initial gram and adding noise.
+
+            Args:
+                rng (PRNGKeyT): The random number generator key.
+
+            Returns:
+                Array: The initialized gram matrix.
+            """
             return np.tril(noise(rng, psd_matrix.shape)) + chol_bij.psd_to_param(
                 psd_matrix
             )

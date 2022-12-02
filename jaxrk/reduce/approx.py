@@ -5,8 +5,22 @@ import time
 from tqdm import tqdm
 import gc
 
+# This code contains the approximate Nystrom method for the kernel matrix based on a paper by Christopher & Cameron Musco: Recursive Sampling for the Nyström Method
 
-def gauss(X: np.ndarray, Y: np.ndarray = None, gamma=0.01):
+# see https://github.com/cnmusco/recursive-nystrom for the original matlab code
+
+
+def gauss(X: np.ndarray, Y: np.ndarray = None, gamma=0.01) -> np.ndarray:
+    """Computes the Gaussian kernel matrix between two sets of vectors.
+
+    Args:
+        X (np.ndarray): First set of vectors.
+        Y (np.ndarray, optional): Second set of vectors. Defaults to None, in which case the kernel matrix is computed between the first set and itself.
+        gamma (float, optional): Kernel parameter. Defaults to 0.01.
+
+    Returns:
+        np.ndarray: Kernel matrix.
+    """
     # todo make this implementation more python like!
 
     if Y is None:
@@ -21,7 +35,19 @@ def gauss(X: np.ndarray, Y: np.ndarray = None, gamma=0.01):
     return Ksub
 
 
-def uniformNystrom(X, n_components: int, kernel_func=gauss):
+def uniformNystrom(
+    X: np.ndarray, n_components: int, kernel_func: callable = gauss
+) -> np.ndarray:
+    """Computes the approximate Nystrom method for the kernel matrix based on uniform sampling from the data points.
+
+    Args:
+        X (np.ndarray): Data points.
+        n_components (int): Number of input space points to sample
+        kernel_func (callable, optional): Kernel function to use. Defaults to gauss.
+
+    Returns:
+        np.ndarray: Approximate kernel matrix.
+    """
     indices = np.random.choice(X.shape[0], n_components)
     C = kernel_func(X, X[indices, :])
     SKS = C[indices, :]
@@ -39,12 +65,19 @@ def recursiveNystrom(
     return_leverage_score=False,
     **kwargs
 ):
-    """
-    :param X:
-    :param n_components:
-    :param kernel_func:
-    :param random_state:
-    :return:
+    """Computes the approximate Nystrom method for the kernel matrix based on recursive sampling from the data points.
+    See Christopher & Cameron Musco 2017: Recursive Sampling for the Nyström Method
+
+    Args:
+        X (np.ndarray): Data points.
+        n_components (int): Number of input space points to sample
+        kernel_func (callable, optional): Kernel function to use. Defaults to gauss.
+        random_state (int, optional): Random state. Defaults to None.
+        lmbda_0 (float, optional): Initial leverage score. Defaults to 0.
+        return_leverage_score (bool, optional): Whether to return the leverage score. Defaults to False.
+
+    Returns:
+        np.ndarray: Approximate kernel matrix.
     """
     rng = np.random.RandomState(random_state)
 
