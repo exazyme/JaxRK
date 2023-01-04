@@ -457,6 +457,22 @@ class TileView(LinearizableReduce):
 
         Returns:
             Array: Reduced array.
+
+        Example:
+            >>> from jax import numpy as jnp
+            >>> from jaxrk.reduce import TileView
+            >>> t = TileView(6)
+            >>> m = jnp.array([[1,2,3],[4,5,6]])
+            >>> t(m)
+            DeviceArray([[1, 2, 3],
+                        [4, 5, 6],
+                        [1, 2, 3],
+                        [4, 5, 6],
+                        [1, 2, 3],
+                        [4, 5, 6]], dtype=int32)
+            >>> t(m, axis=1)
+            DeviceArray([[1, 2, 3, 1, 2, 3],
+                        [4, 5, 6, 4, 5, 6]], dtype=int32)
         """
         assert self.result_len % inp.shape[0] == 0, (
             "Input can't be broadcasted to target length %d" % self.result_len
@@ -600,10 +616,10 @@ class Mean(LinearizableReduce):
 
 
 class BalancedRed(LinearizableReduce):
-    """Balanced reduction of the input array. Sum the input array (and potentially divide by the number of elements)."""
+    """Balanced reduction of the input array. Sums up a fixed number of consecutive elements in the input array (and potentially divide by the number of elements)."""
 
     def __init__(self, points_per_split: int, average=False):
-        """Sum up a number of elements in the input.
+        """Balanced reduction of the input array. Sums up a number of consecutive elements in the input.
 
         Args:
             points_per_split (int): Number of points per split, i.e. number of dimensions to sum up to a single result dimension.
@@ -620,7 +636,7 @@ class BalancedRed(LinearizableReduce):
             self.factor = 1.0
 
     def __call__(self, inp: Array, axis: int = 0) -> Array:
-        """Sum up a number of elements in the input.
+        """Sums up a fixed number of consecutive elements in the input array (and potentially divide by the number of elements).
 
         Args:
             inp (Array): Input array, typically a gram matrix.
@@ -628,6 +644,17 @@ class BalancedRed(LinearizableReduce):
 
         Returns:
             Array: Reduced input array.
+
+        Example:
+            >>> from jax import numpy as jnp
+            >>> from jaxrk.reduce import BalancedRed
+            >>> b = BalancedRed(2)
+            >>> m = jnp.array([[1, 2, 3, 4], [5, 6, 7, 8]])
+            >>> b(m, axis=0)
+            DeviceArray([[ 6,  8, 10, 12]], dtype=int32)
+            >>> b(m, axis=1)
+            DeviceArray([[ 3,  7],
+                         [11, 15]], dtype=int32)
         """
         perm = list(range(len(inp.shape)))
         perm[0] = axis
