@@ -24,7 +24,15 @@ class CenterInpFeat(Reduce):
     inp_feat_uncentered_gram: Array
 
     @classmethod
-    def __const_term_init(cls, g):
+    def __const_term_init(cls, gram: Array) -> Array:
+        """Compute the constant term for the centering of input features.
+
+        Args:
+            gram (np.array): The output of inp_feat_uncentered.inner(), where inp_feat_uncentered == Φ.
+
+        Returns:
+            np.array: The constant term for the centering of input features.
+        """
         assert len(g.shape) == 2
         assert g.shape[0] == g.shape[1]
         mean = g.mean(axis=1, keepdims=True)
@@ -33,6 +41,7 @@ class CenterInpFeat(Reduce):
     def setup(
         self,
     ):
+        """FLAX setup method."""
         self.const_term = self.variable(
             "constants",
             "const_term",
@@ -41,9 +50,25 @@ class CenterInpFeat(Reduce):
         )
 
     def reduce_first_ax(self, inp: np.array) -> np.array:
+        """Reduce the first axis of the input.
+
+        Args:
+            inp (np.array): Input to reduce. Typically a gram matrix.
+
+        Returns:
+            np.array: Reduced input.
+        """
         return inp - inp.mean(0, keepdims=True) + self.const_term
 
     def new_len(self, original_len: int) -> int:
+        """Compute the new length of the input.
+
+        Args:
+            original_len (int): Original length of the input.
+
+        Returns:
+            int: New length of the input.
+        """
         assert original_len == self.const_term.size
         return original_len
 
@@ -65,12 +90,29 @@ class DecenterOutFeat(Reduce):
     def setup(
         self,
     ):
-        assert len(lin_map.shape) == 2
+        """FLAX setup method."""
+        assert len(self.lin_map.shape) == 2
         self.corr_fact = 1.0 - np.sum(self.lin_map, 1, keepdims=True)
 
     def reduce_first_ax(self, inp: np.array) -> np.array:
+        """Reduce the first axis of the input.
+
+        Args:
+            inp (np.array): Input to reduce. Typically a gram matrix.
+
+        Returns:
+            np.array: Reduced input.
+        """
         return self.corr_fact * np.mean(inp, axis=0, keepdims=True) + self.lin_map @ inp
 
     def new_len(self, original_len: int) -> int:
+        """Compute the new length of the input.
+
+        Args:
+            original_len (int): Original length of the input.
+
+        Returns:
+            int: New length of the input.
+        """
         original_len == len(self.lin_map)
         return original_len

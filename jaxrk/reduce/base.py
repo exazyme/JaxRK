@@ -196,6 +196,8 @@ class LinearReduce(Reduce):
 
 
 class LinearizableReduce(Reduce):
+    """Reduction that can be linearized."""
+
     def linearize(self, gram_shape: tuple, axis: int = 0) -> LinearReduce:
         """Linearize the reduction.
 

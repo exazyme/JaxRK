@@ -17,25 +17,23 @@ from ..utilities.cv import vmatmul_fixed_inp
 from .base import LinearizableReduce, Reduce
 
 
-def compute_slices(l: List[int]):
-    cs = np.cumsum(np.array(l))
-    prepend_0 = list(cs[:-1])
-    prepend_0.insert(0, 0)
-    prepend_0 = np.array(prepend_0)
-    return np.vstack([prepend_0, cs]).T
-
-
 # ListOfArray_or_Array_T = TypeVar("CombT", List[Array], Array)
 
 
 class SparseReduce(LinearizableReduce):
-    """SparseReduce constructs a Gram matrix by summing/averaging over rows of its input
+    """SparseReduce constructs a Gram matrix by summing/averaging over rows of its input"""
 
-    Args:
-        idcs (List[np.array]): The indices of the rows to sum/average in the desired order. Each list element contains 2d arrays. The number of columns in the array is the number of summed/averaged elements.
-        average (bool): If True average rows, else sum rows."""
+    def __init__(
+        self, idcs: List[Array], average: bool = True, max_idx: int = None
+    ) -> None:
+        """Initialize SparseReduce.
 
-    def __init__(self, idcs: List[Array], average: bool = True, max_idx=None):
+        Args:
+            idcs (List[np.array]): The indices of the rows to sum/average in the desired order. Each list element contains 2d arrays. The number of columns in the array is the number of summed/averaged elements.
+            average (bool): If True average rows, else sum rows.
+            max_idx (int, optional): The maximum index in the input. Defaults to None, in which case the maximum index is inferred from the idcs.
+        """
+
         super().__init__()
         self.idcs = idcs
         if max_idx is not None:
@@ -53,6 +51,14 @@ class SparseReduce(LinearizableReduce):
             self._reduce = np.sum
 
     def reduce_first_ax(self, inp: np.array) -> np.array:
+        """Reduce the first axis of the input.
+
+        Args:
+            inp (np.array): Input to reduce. Typically a gram matrix.
+
+        Returns:
+            np.array: Reduced input.
+        """
         assert (self.max_idx + 1) <= len(inp), (
             self.__class__.__name__ + " expects a longer gram to operate on"
         )
@@ -72,13 +78,30 @@ class SparseReduce(LinearizableReduce):
                 rval.append(reduced)
         return np.concatenate(rval, 0)
 
-    def new_len(self, original_len: int):
+    def new_len(self, original_len: int) -> int:
+        """Get the length of the reduced gram matrix.
+
+        Args:
+            original_len (int): The length of the original gram matrix.
+
+        Returns:
+            int: The length of the reduced gram matrix.
+        """
         assert (self.max_idx + 1) <= original_len, (
             self.__class__.__name__ + " expects a longer gram to operate on"
         )
         return len(self.idcs)
 
     def linmap(self, inp_shape: tuple, axis: int = 0) -> np.array:
+        """Get the linear map that reduces the first axis of the input.
+
+        Args:
+            inp_shape (tuple): The shape of the input.
+            axis (int, optional): The axis to reduce. Defaults to 0.
+
+        Returns:
+            np.array: The linear map that reduces the first axis of the input.
+        """
         n_in = self.max_idx + 1
         assert inp_shape[axis] == n_in, ValueError(
             "Input shape does not match reduction assumptions"
@@ -103,6 +126,11 @@ class SparseReduce(LinearizableReduce):
     def sum_from_unique(
         cls, input: np.array, mean: bool = True
     ) -> Tuple[np.array, np.array, "SparseReduce"]:
+        """Construct a SparseReduce object from a 1d array values by summing/averaging over the indices of the unique values.
+
+        Returns:
+            Tuple[np.array, np.array, "SparseReduce"]: The unique values, the counts of the unique values, and the SparseReduce object.
+        """
         un, cts = np.unique(input, return_counts=True)
         un_idx = [np.argwhere(input == un[i]).flatten() for i in range(un.size)]
         l_arr = np.array([i.size for i in un_idx])

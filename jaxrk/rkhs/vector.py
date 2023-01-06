@@ -384,7 +384,15 @@ def distr_estimate_optimization(
         est (str, optional): The type of estimate. Defaults to "support", in which case the estimate is the support of the distribution. The other option is "density", in which case the estimate is the density of the distribution from which the samples were drawn.
     """
 
-    def __casted_output(function):
+    def __casted_output(function: Callable) -> Callable:
+        """Cast output of function to float64.
+
+        Args:
+            function (Callable): Function to cast.
+
+        Returns:
+            Callable: The casted function.
+        """
         return lambda x: onp.asarray(function(x), dtype=np.float64)
 
     G = kernel(sampled_pts).astype(np.float64)
