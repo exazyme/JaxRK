@@ -5,7 +5,7 @@
 #   * runs interrograte to check docstring coverage
 # writes reports and summaries to the REPORTING_DIR directory
 
-SOURCE_DIR=jaxrk
+SOURCE_DIR=src/jaxrk
 REPORTING_DIR=code_health
 
 TEST_COV=$REPORTING_DIR/test_coverage
