@@ -165,6 +165,7 @@ def gram_projection(
         n_pref = np.prod(np.ndarray(s))
 
         def cost(M):
+            """Cost function to be minimized for the positive projection based on RKHS distances"""
             M = M.reshape(s)
             return np.trace(
                 rkhs_gram_cdist_ignore_const(G_orig_repr @ M.T, M @ G_repr @ M.T)

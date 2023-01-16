@@ -27,6 +27,7 @@ def median_heuristic(data: any, distance: callable, per_dimension: bool = True) 
     if isinstance(distance, str):
 
         def dist_fn(x):
+            """Wrapper for pdist"""
             return pdist(x, distance)
 
     else:
@@ -36,6 +37,7 @@ def median_heuristic(data: any, distance: callable, per_dimension: bool = True) 
     else:
 
         def single_dim_heuristic(data_dim):
+            """Compute the median heuristic for a single dimension"""
             return median_heuristic(data_dim[:, None], dist_fn, per_dimension=False)
 
         return onp.apply_along_axis(single_dim_heuristic, 0, data)
