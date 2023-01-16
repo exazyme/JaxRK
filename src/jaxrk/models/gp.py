@@ -368,79 +368,18 @@ def gp_predictive(
 def loglhood_loss(
     y_test: Array, pred_mean_y: Array, pred_cov_y: Array, loglhood_y: Array
 ) -> float:
+    """Log likelihood loss.
+
+    Args:
+        y_test (Array): Test data (ground truth)
+        pred_mean_y (Array): Predictive mean
+        pred_cov_y (Array): Predictive covariance
+        loglhood_y (Array): Log likelihood
+
+    Returns:
+        float: The log likelihood loss, simply returns loglhood_y.
+    """
     return loglhood_y
-
-
-def dcg(y_true, y_score):
-    order = np.argsort(y_score)[::-1]
-    discounts = np.log2(np.arange(len(y_true)) + 2)
-    print("=====", y_true[order], discounts, "=====")
-    print(y_true[order] / discounts)
-    return np.sum(y_true[order] / discounts)
-
-
-def dcg_loss(
-    y_test: Array, pred_mean_y: Array, pred_cov_y: Array, loglhood_y: Array
-) -> float:
-    ucb_crit = pred_mean_y + 0.5 * np.sqrt(np.clip(np.diagonal(pred_cov_y), 0, None))
-    return -dcg(y_test, ucb_crit)
-
-
-def idcg_loss(
-    y_test: Array, pred_mean_y: Array, pred_cov_y: Array, loglhood_y: Array
-) -> float:
-    ucb_crit = pred_mean_y + 0.5 * np.sqrt(np.clip(np.diagonal(pred_cov_y), 0, None))
-    return -dcg(y_test, ucb_crit) / dcg(y_test, y_test)
-
-
-def differences(a: np.ndarray):
-    result = []
-    for i, x1 in enumerate(a):
-        for x2 in a[i + 1 :]:
-            result.append(x1 - x2)
-    return np.array(result)
-
-
-@jax.jit
-def concordant_discordant(x: Array, y: Array):
-    ox = np.sign(differences(x))
-    oy = np.sign(differences(y))
-    return np.sum(ox == oy), np.sum(ox != oy)
-
-
-def distance_of_distances_loss(x: Array, y: Array):
-    return -np.sum(np.abs(differences(x) - differences(y)))
-
-
-def condis_loss(x, y):
-    con, dis = concordant_discordant(x, y)
-    return np.sum(con - dis)  # .astype(float)#/x.size
-
-
-def spearman_rho_loss(x: Array, y: Array):
-    rx = np.argsort(x).squeeze()
-    ry = np.argsort(y).squeeze()
-    c = np.mean((rx - rx.mean()) * (ry - ry.mean()))
-    sd = rx.std().squeeze() * ry.std().squeeze()
-    print(rx, ry, sd)
-    return c / sd
-
-
-class UcbRankLoss(object):
-    def __init__(self, loss, exploration_factor: float):
-        self.loss = loss
-        self.exploration_factor = exploration_factor
-
-    def __call__(
-        self, y_test: Array, pred_mean_y: Array, pred_cov_y: Array, loglhood_y: Array
-    ) -> float:
-
-        pred = (
-            pred_mean_y.squeeze()
-            + self.exploration_factor * np.diagonal(pred_cov_y).squeeze()
-        )
-        # print(f"cov-shape {pred_cov_y.shape}, {np.diagonal(pred_cov_y).shape}, {pred.shape}")
-        return self.loss(y_test, pred).astype(float)
 
 
 # @jax.jit
@@ -471,35 +410,6 @@ def gp_val_loss(
 vmap_gp_val_lhood = jax.jit(
     jax.vmap(partial(gp_val_loss, loss=loglhood_loss), (0, 0, None, None, None))
 )
-
-vmap_gp_val_idcg = jax.jit(
-    jax.vmap(partial(gp_val_loss, loss=idcg_loss), (0, 0, None, None, None))
-)
-
-vmap_gp_val_dcg = jax.jit(
-    jax.vmap(partial(gp_val_loss, loss=dcg_loss), (0, 0, None, None, None))
-)
-
-# vmap_gp_val_kendall = jax.jit(jax.vmap(partial(gp_val_loss, loss = UcbRankLoss(stats.kendalls_tau, 0.)), (0, 0, None, None, None)))
-vmap_gp_val_rank = jax.jit(
-    jax.vmap(
-        partial(gp_val_loss, loss=UcbRankLoss(condis_loss, 0.0)),
-        (0, 0, None, None, None),
-    )
-)
-vmap_gp_val_rho = jax.jit(
-    jax.vmap(
-        partial(gp_val_loss, loss=UcbRankLoss(spearman_rho_loss, 0.0)),
-        (0, 0, None, None, None),
-    )
-)
-vmap_gp_val_dists = jax.jit(
-    jax.vmap(
-        partial(gp_val_loss, loss=UcbRankLoss(distance_of_distances_loss, 0.0)),
-        (0, 0, None, None, None),
-    )
-)
-# vmap_gp_val_spearman = jax.jit(jax.vmap(partial(gp_val_loss, loss = UcbRankLoss(stats.spearmanr, 0.)), (0, 0, None, None, None)))
 
 
 def gp_mlhood(train_sel: Array, val_sel: Array, x_inner_x: Array, y: Array, noise: float):
