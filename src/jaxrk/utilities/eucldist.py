@@ -9,7 +9,16 @@ __all__ = ["eucldist"]
 
 
 @jit
-def sqeucldist_simple(a, b=None):
+def sqeucldist_simple(a: np.ndarray, b: np.ndarray = None) -> np.ndarray:
+    """Compute squared Euclidean distance between two arrays. Simple version using einsum.
+
+    Args:
+        a (np.ndarray): First array with shape (n, d)
+        b (np.ndarray, optional): Second array with shape (m, d), Defaults to None, in which case the distance is computed between the rows of a and itself.
+
+    Returns:
+        np.ndarray: Squared Euclidean distance between a and b with shape (n, m)
+    """
     a_sumrows = np.einsum("ij,ij->i", a, a)
     if b is not None:
         b_sumrows = np.einsum("ij,ij->i", b, b)
@@ -20,7 +29,16 @@ def sqeucldist_simple(a, b=None):
 
 
 @jit
-def sqeucldist_extension(a, b=None):
+def sqeucldist_extension(a: np.ndarray, b: np.ndarray = None) -> np.ndarray:
+    """Compute squared Euclidean distance between two arrays. Version using matrix extension.
+
+    Args:
+        a (np.ndarray): First array with shape (n, d)
+        b (np.ndarray, optional): Second array with shape (m, d), Defaults to None, in which case the distance is computed between the rows of a and itself.
+
+    Returns:
+        np.ndarray: Squared Euclidean distance between a and b with shape (n, m)
+    """
     A_sq = a**2
 
     if b is not None:
@@ -37,7 +55,20 @@ def sqeucldist_extension(a, b=None):
     return A_ext @ B_ext
 
 
-def eucldist(a, b=None, power=1.0, variant="simple"):
+def eucldist(
+    a: np.ndarray, b: np.ndarray = None, power: float = 1.0, variant: str = "simple"
+) -> np.ndarray:
+    """Compute Euclidean distance between two arrays.
+
+    Args:
+        a (np.ndarray): First array with shape (n, d)
+        b (np.ndarray, optional): Second array with shape (m, d), Defaults to None, in which case the distance is computed between the rows of a and itself.
+        power (float, optional): Power of the euclidean distance to return. Defaults to 1.0.
+        variant (str, optional): Variant of the euclidean distance to use. Defaults to "simple", options are "simple" and "extension".
+
+    Returns:
+        np.ndarray: Euclidean distance between a and b with shape (n, m)
+    """
     if variant == "simple":
         sqdist = sqeucldist_simple(a, b)
     elif variant == "extension":

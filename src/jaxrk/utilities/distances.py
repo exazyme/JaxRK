@@ -9,7 +9,18 @@ from .eucldist import eucldist
 __all__ = ["dist", "median_heuristic"]
 
 
-def median_heuristic(data, distance, per_dimension=True):
+def median_heuristic(data: any, distance: callable, per_dimension: bool = True) -> float:
+    """Compute the median heuristic for a given distance function, resulting in a kernel width
+
+    Args:
+        data (any): Data to compute the median heuristic for
+        distance (callable): Distance function to use
+        per_dimension (bool, optional): Whether to compute the median heuristic per dimension. Defaults to True.
+
+    Returns:
+        float: Kernel width for the given distance function
+    """
+
     import numpy as onp
     from scipy.spatial.distance import pdist
 
@@ -50,7 +61,18 @@ def rkhs_cdist(a: Vec, b: Vec = None, power: float = 2.0):
         return rkhs_gram_cdist(a.inner(b), a.inner(), b.inner(), power=power)
 
 
-def dist(a: T, b: T = None, power: float = 2.0):
+def dist(a: T, b: T = None, power: float = 2.0) -> Array:
+    """Compute distances between elements in vectors a and b, which can be either RKHS vectors of or JAX numpy arrays.
+    If a and b are RKHS vectors, the distances are computed using the RKHS inner product, otherwise the Euclidean distance is used.
+
+    Args:
+        a (T): Vector a to compute distances from.
+        b (T, optional): Vector b to compute distances to. Defaults to None, in which case the function returns the distances between all elements of a.
+        power (float, optional): Power to raise the distance to. Defaults to 2.
+
+    Returns:
+        Array: Distances between elements in a and b
+    """
     if isinstance(a, Vec):
         dfunc = rkhs_cdist
     else:

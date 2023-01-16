@@ -25,13 +25,53 @@ vmatmul_variable_inp = jit(
 )
 
 
-def loo_train_val(n_orig: int):
+def loo_train_val(n_orig: int) -> tuple[Array]:
+    """Get leave-one-out train and validation indices
+
+    Args:
+        n_orig (int): Number of samples in original dataset
+
+    Returns:
+        tuple[Array]: Train and validation indices
+
+    Example:
+        >>> loo_train_val(5)
+        (DeviceArray([[1, 2, 3, 4],
+                      [0, 2, 3, 4],
+                      [0, 1, 3, 4],
+                      [0, 1, 2, 4],
+                      [0, 1, 2, 3]], dtype=int32),
+        DeviceArray([[0],
+                     [1],
+                     [2],
+                     [3],
+                     [4]], dtype=int32))
+
+    """
     val = np.arange(n_orig)
     train = np.array([np.delete(val, i) for i in val])
     return train, val.reshape(-1, 1)
 
 
-def cv_train_val(n_orig: int, n_train: int, n_splits: int, rng: PRNGKeyT):
+def cv_train_val(n_orig: int, n_train: int, n_splits: int, rng: PRNGKeyT) -> tuple[Array]:
+    """Get cross-validation train and validation indices
+
+    Args:
+        n_orig (int): Number of samples in original dataset
+        n_train (int): Number of samples to use in training set
+        n_splits (int): Number of splits
+        rng (PRNGKeyT): Random number generator key
+
+    Returns:
+        tuple[Array]: Train and validation indices
+
+    Example:
+        >>> cv_train_val(5, 3, 2, random.PRNGKey(0))
+        (DeviceArray([[2, 3, 1],
+                      [1, 0, 4]], dtype=int32),
+        DeviceArray([[0, 4],
+                     [3, 2]], dtype=int32))
+    """
     p = vmap(random.permutation, (0, None))(random.split(rng, n_splits), n_orig)
     return p[:, :n_train], p[:, n_train:]
 
@@ -46,6 +86,16 @@ def idcs_to_selection_matr(n_orig: int, idcs: Array, idcs_sorted: bool = False) 
 
     Returns:
         Array: Linear maps corresponding to the indices in each row.
+
+    Example:
+        >>> idcs_to_selection_matr(5, np.array([[0, 2, 3], [1, 2, 3]]))
+        DeviceArray([[[1., 0., 0., 0., 0.],
+                      [0., 0., 1., 0., 0.],
+                      [0., 0., 0., 1., 0.]],x
+
+                     [[0., 1., 0., 0., 0.],
+                      [0., 0., 1., 0., 0.],
+                      [0., 0., 0., 1., 0.]]], dtype=float32)
     """
     if not idcs_sorted:
         idcs = np.sort(idcs, 1)

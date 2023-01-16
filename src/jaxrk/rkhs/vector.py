@@ -398,13 +398,15 @@ def distr_estimate_optimization(
     G = kernel(sampled_pts).astype(np.float64)
 
     if est == "support":
-        # solution evaluated in support points should be positive constant
+
         def cost(f):
+            """Solution evaluated in support points should be positive constant"""
             return np.abs(dot(f, G) - 1).sum()
 
     elif est == "density":
-        # minimum negative log likelihood of support_points under solution
+
         def cost(f):
+            """Minimum negative log likelihood of support_points under solution"""
             return -log(dot(f, G)).sum()
 
     bounds = [(0.0, None)] * len(sampled_pts)
