@@ -33,21 +33,10 @@ class CenterInpFeat(Reduce):
         Returns:
             np.array: The constant term for the centering of input features.
         """
-        assert len(g.shape) == 2
-        assert g.shape[0] == g.shape[1]
-        mean = g.mean(axis=1, keepdims=True)
+        assert len(gram.shape) == 2
+        assert gram.shape[0] == gram.shape[1]
+        mean = gram.mean(axis=1, keepdims=True)
         return mean.mean() - mean
-
-    def setup(
-        self,
-    ):
-        """FLAX setup method."""
-        self.const_term = self.variable(
-            "constants",
-            "const_term",
-            CenterInpFeat.__const_term_init,
-            self.inp_feat_uncentered_gram,
-        )
 
     def reduce_first_ax(self, inp: np.array) -> np.array:
         """Reduce the first axis of the input.
@@ -86,13 +75,6 @@ class DecenterOutFeat(Reduce):
     """
 
     lin_map: Array
-
-    def setup(
-        self,
-    ):
-        """FLAX setup method."""
-        assert len(self.lin_map.shape) == 2
-        self.corr_fact = 1.0 - np.sum(self.lin_map, 1, keepdims=True)
 
     def reduce_first_ax(self, inp: np.array) -> np.array:
         """Reduce the first axis of the input.
