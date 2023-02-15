@@ -1,11 +1,39 @@
 import jax.numpy as np
-from jaxrk.core.constraints import SoftBound, CholeskyBijection
+from jaxrk.core.constraints import SoftBound, CholeskyBijection, SoftPlus
+import pytest
+import jaxrk.core.constraints as constraints
+from functools import partial
+
+
+lower_bound_values = (-0.4, 5.0)
+upper_bound_values = (5.5, 6.0)
+
+
+@pytest.mark.parametrize(
+    "l",
+    [
+        partial(constraints.NonnegToLowerBd, bij=constraints.SoftPlus),
+        partial(constraints.NonnegToLowerBd, bij=constraints.SquarePlus),
+    ],
+)
+def _test_lower_bounds(l: constraints.Bijection, lb: float):
+    atol = 1e-2
+    x = np.linspace(lb - 50, 50, 1000)
+    for lb in lower_bound_values:
+        for bij in [constraints.SoftPlus, constraints.SquarePlus]:
+            # test the lower bound bijections
+            l = constraints.NonnegToLowerBd(lb, bij)
+            lx = l(x)
+            assert np.all(lx > lb)
+            assert np.abs(lx[0] - lb) < 0.2
+            assert np.abs(l.inv(lx) - x).mean() < atol
 
 
 def test_simple_bijections(atol=1e-2):
     for lb in (-0.4, 5.0):
         for ub in (5.5, 6.0):
             assert lb < ub
+
             l = SoftBound(l=lb)
             u = SoftBound(u=ub)
             lu = SoftBound(lb, ub)

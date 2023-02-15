@@ -1,12 +1,12 @@
 from collections import namedtuple
 from functools import partial
 
-from ..rkhs import FiniteVec
+from ..rkhs import FiniteVec, RkhsVecEncoder
 from ..core.typing import Array
 from ..utilities import cv
 import jax.numpy as np
 import jax.scipy as sp
-from typing import Any, Callable, Union
+from typing import Any, Callable, Generic, TypeVar, Union
 from jaxrk.rkhs import Cov_regul
 import jax
 
@@ -454,20 +454,32 @@ def gp_cv_val_lhood(
     return rval.sum()
 
 
-class GP(object):
+InputT = TypeVar("InputT")
+
+
+class GP(Generic[InputT]):
     """Gaussian Process Regression class"""
 
-    def __init__(self, x: FiniteVec, y: Array, noise: float, normalize_y: bool = False):
+    def __init__(
+        self,
+        enc: RkhsVecEncoder[InputT],
+        x: InputT,
+        y: Array,
+        noise: float,
+        normalize_y: bool = False,
+    ):
         """Constructor for GP class
 
         Args:
-            x (FiniteVec): JaxRk FiniteVec object of length n
+            enc (RkhsVecEncoder): RkhsVecEncoder object that encodes the input data (e.g. x) into an RKHS vector
+            x (InputT): Input data representing n input space points
             y (Array): Array of shape (n, 1) or (n,) containing the target values
             noise (float): Noise level/regularization parameter
             normalize_y (bool, optional): Whether to normalize the y values. Defaults to False.
         """
-        self.x = x
-        self.x_inner_x = x.inner()
+        self.enc = enc
+        self.x_enc = enc(x)
+        self.x_inner_x = self.x_enc.inner()
         self.chol, self.y, self.prec_y, self.ymean, self.ystd, self.noise = gp_init(
             self.x_inner_x, y, noise, normalize_y
         )
@@ -490,18 +502,18 @@ class GP(object):
         """
         return gp_loglhood_mean0(self.y, self.chol, self.prec_y)
 
-    def predict(self, xtest: FiniteVec, diag=True) -> tuple[Array, Array]:
+    def predict(self, xtest: InputT, diag=True) -> tuple[Array, Array]:
         """Compute predictive mean and (co)variance of the GP
 
         Args:
-            xtest (FiniteVec): Test points given as a vector of RKHS points (i.e. a FiniteVec object)
+            xtest (InputT): Test points given as a vector of RKHS points (i.e. a FiniteVec object)
             diag (bool, optional): Whether to compute only the diagonal of the predictive covariance matrix. Defaults to True.
 
         Returns:
             tuple[Array, Array]: Predictive mean and variance or covariance matrix
         """
         pred_m, pred_cov = gp_predictive(
-            self.x.inner(xtest),
+            self.x_enc.inner(xtest),
             xtest.inner(),
             self.chol,
             self.prec_y,
@@ -523,7 +535,7 @@ class GP(object):
             tuple[Array, Array, float]: Predictive mean, variance and log marginal likelihood.
         """
         return gp_predictive(
-            self.x.inner(xtest),
+            self.x_enc.inner(xtest),
             xtest.inner(),
             self.chol,
             self.prec_y,

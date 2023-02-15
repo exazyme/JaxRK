@@ -7,3 +7,4 @@ from .base import Vec, LinOp, inner
 from .vector import FiniteVec, CombVec
 from .operator import *
 from .cov import *
+from .encoder import *

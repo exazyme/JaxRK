@@ -1,16 +1,14 @@
 from collections import namedtuple
-import copy
 from turtle import position
 import jax.numpy as np
 import jax.scipy as sp
 import jax.random as jr
-from numpy.testing import assert_allclose
 import pytest
 import jaxopt
 import optax as ot
 
 
-from jaxrk.rkhs import FiniteVec, inner
+from jaxrk.rkhs import FiniteVec, inner, StandardEncoder
 from jaxrk.kern import GenGaussKernel
 import jaxrk.models.gp as gp
 import scipy.stats as stats
@@ -51,8 +49,11 @@ def test_gp(D_X, D_Y, kernel, N):
     k1, k2, k3, k4 = jr.split(rng, 4)
     y1 = jr.normal(k1, (N, D_Y))
     y2 = jr.normal(k4, (N, D_Y))
-    v_X, v_Xp = [FiniteVec(kernel, jr.normal(k, (N, D_X)) * 20, []) for k in (k2, k3)]
-    g = gp.GP(v_X, y1, 2.0, True)
+    enc = StandardEncoder(kernel)
+    X, Xp = [jr.normal(k, (N, D_X)) * 20 for k in (k2, k3)]
+    v_X, v_Xp = [enc(X), enc(Xp)]
+
+    g = gp.GP(enc, v_X, y1, 2.0, True)
     G_X = v_X.inner()
     Chol_X = np.linalg.cholesky(G_X)
     G_Xp = v_Xp.inner()

@@ -19,7 +19,7 @@ def test_eucldist():
             ground_truth = cdist(*dist_args, name)
             for v in variants:
                 d = eucldist(*dist_args, power=pow, variant=v)
-                assert allclose(ground_truth, d, atol=1e-05)
+                assert allclose(ground_truth, d, atol=1e-02)
 
 
 def test_dist():

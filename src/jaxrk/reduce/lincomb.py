@@ -114,10 +114,8 @@ class SparseReduce(LinearizableReduce):
                 idx1 = np.repeat(
                     np.arange(self.idcs[i].shape[0]) + offset, self.idcs[i].shape[1]
                 )
-                lin_map = jax.ops.index_update(
-                    lin_map,
-                    (idx1, self.idcs[i].flatten()),
-                    1.0 / self.idcs[i].shape[1] if self.average else 1.0,
+                lin_map = lin_map.at[(idx1, self.idcs[i].flatten())].set(
+                    1.0 / self.idcs[i].shape[1] if self.average else 1.0
                 )
             offset += self.idcs[i].shape[0]
         return lin_map
