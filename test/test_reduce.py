@@ -6,7 +6,7 @@ from numpy.testing import assert_allclose
 
 
 from jaxrk.rkhs import FiniteVec, inner
-from jaxrk.reduce import SparseReduce, SparseReduce, LinearReduce
+from jaxrk.reduce import SparseReduce, LinearReduce
 
 rng = np.random.RandomState(1)
 
@@ -25,13 +25,11 @@ def test_SparseReduce():
 def test_reduce_from_unique():
     inp = np.array([1, 1, 0, 3, 5, 0])
     un1, cts1, red1 = SparseReduce.sum_from_unique(inp)
-    # red2 = BlockReduce.sum_from_block(inp)
     un3, cts3, red3 = LinearReduce.sum_from_unique(inp)
 
     args = np.argsort(un1)
 
     i_out = np.outer(inp, inp)
-    # assert np.all(red1.reduce_first_ax(i_out) == red2.reduce_first_ax(i_out)[args, :])
     assert np.all(red1.reduce_first_ax(i_out) == red3.reduce_first_ax(i_out)[args, :])
 
 

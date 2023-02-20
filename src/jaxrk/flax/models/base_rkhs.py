@@ -1,4 +1,3 @@
-import flax.linen as nn
 import abc
 from ...rkhs import FiniteVec
 from ...kern import Kernel
@@ -6,7 +5,7 @@ from ..factories import Factory
 from ...core.typing import Array
 
 
-class RkhsVecEncoder(nn.Module, abc.ABC):
+class RkhsVecEncoder(abc.ABC):
     """Abstract class for RKHS vector encoders. These are used to encode input space data into RKHS vectors.
 
     Example:

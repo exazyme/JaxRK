@@ -143,8 +143,8 @@ class LinearReduce(Reduce):
         """Find unique vectors in `input` along `axis`, return the unique data points, their counts and a linear reduction that multiplies the (now unique) vectors by their counts.
 
         Args:
-            input (Array): The input array.
-            mean (bool, optional): Whether to return the mean of the unique rows rather than the sum. Defaults to True.
+            input (np.array): The input array.
+            mean (bool, optional): Average the values if True, sum them if False. Defaults to True.
             axis (int, optional): Axis to find unique vectors along. Defaults to None, in which case the flattened array is used.
 
         Returns:

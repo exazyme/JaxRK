@@ -17,7 +17,7 @@ def nystrom_eigh(gram: np.ndarray, n_comp: int, regul: float = 0.0) -> tuple:
     assert gram.shape[0] == gram.shape[1]
     assert gram.shape[0] >= n_comp
 
-    perm = np.arange(gram.shape[0])
+    perm = random.permutation(gram.shape[0])
     idx_in = perm[:n_comp]
     idx_out = perm[n_comp:]
     λ, vec_in = np.linalg.eigh(gram[idx_in, :][:, idx_in])
