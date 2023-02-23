@@ -218,6 +218,7 @@ class ScaledPairwiseDistance:
                 rval = np.zeros(X.shape[0])
             else:
                 # check(X.shape == Y.shape, "X and Y must have the same shape")
+                # FIXME: this should use dist as well, as X and Y may be RKHS vectors
                 rval = self.gs(np.sum(np.abs(self.ds(X) - self.ds(Y)) ** self.power, 1))
         else:
             rval = self.gs(dist(self.ds(X), self.ds(Y), power=1.0)) ** self.power

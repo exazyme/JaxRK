@@ -4,9 +4,9 @@ from ..core.typing import Array
 from ..rkhs.base import Vec
 from .gram import rkhs_gram_cdist
 from .eucldist import eucldist
+import jax
 
-
-__all__ = ["dist", "median_heuristic"]
+__all__ = ["dist", "median_heuristic", "outer"]
 
 
 def median_heuristic(data: any, distance: callable, per_dimension: bool = True) -> float:
@@ -64,7 +64,7 @@ def rkhs_cdist(a: Vec, b: Vec = None, power: float = 2.0):
 
 
 def dist(a: T, b: T = None, power: float = 2.0) -> Array:
-    """Compute distances between elements in vectors a and b, which can be either RKHS vectors of or JAX numpy arrays.
+    """Compute distances between elements in vectors a and b, which can be either RKHS vectors or JAX numpy arrays.
     If a and b are RKHS vectors, the distances are computed using the RKHS inner product, otherwise the Euclidean distance is used.
 
     Args:
@@ -80,3 +80,19 @@ def dist(a: T, b: T = None, power: float = 2.0) -> Array:
     else:
         dfunc = eucldist
     return dfunc(a, b, power=power)
+
+
+def outer(a: T, b: T = None) -> Array:
+    """Compute the outer product of two vectors, which can be either RKHS vectors or JAX numpy arrays. If both vectors are vectors of RKHS elements, the outer product is computed using the RKHS inner product of all pairs of elements. Otherwise, the outer product is computed using the JAX numpy outer product.
+
+    Args:
+        a (T): The first vector
+        b (T, optional): The second vector. Defaults to None, in which case the inner product is computed with X with itself.
+
+    Returns:
+        Array: The inner product
+    """
+    if isinstance(a, Vec):
+        return a.inner(b)
+    else:
+        return a @ b.T

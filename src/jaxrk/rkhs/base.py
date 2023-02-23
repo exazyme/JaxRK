@@ -52,16 +52,3 @@ class LinOp(Vec, Generic[InpVecT, OutVecT], ABC):
 
 
 RkhsObject = Union[Vec, LinOp]
-
-
-def inner(X: Vec, Y: Vec = None) -> Array:
-    """Compute the inner product of two vectors in the RKHS.
-
-    Args:
-        X (Vec): The first vector
-        Y (Vec, optional): The second vector. Defaults to None, in which case the inner product is computed with X with itself.
-
-    Returns:
-        Array: The inner product
-    """
-    return X.inner(Y)

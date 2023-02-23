@@ -15,6 +15,7 @@ from scipy.stats import multivariate_normal
 from ..kern.base import Kernel
 from ..core.constraints import NonnegToLowerBd, Bijection, CholeskyBijection
 from ..utilities.views import tile_view
+from ..utilities.distances import outer
 
 
 class FeatMapKernel(Kernel):
@@ -46,12 +47,36 @@ class FeatMapKernel(Kernel):
         else:
             f_Y = self.feat_map(Y)
         if diag:
-            return np.sum(f_X * f_Y, 1)
+            # FIXME picking the diagonal should be done more efficiently inside the outer() function
+            return np.diagonal(outer(f_X, f_Y))
         else:
-            return f_X.dot(f_Y.T)
+            return outer(f_X, f_Y)
 
 
 LinearKernel = partial(FeatMapKernel, feat_map=lambda x: x)
+
+
+class PolynomialFeatMapKernel(Kernel):
+    """A kernel that is defined by a feature map, an aditive constant and an exponent."""
+
+    def __init__(
+        self, c: float, d: int, feat_map: Callable[[Array], Array] = lambda x: x
+    ):
+        """A kernel that is defined by a feature map, an aditive constant and an exponent.
+
+        Args:
+            c: The additive constant.
+            d: The exponent.
+            feat_map: A callable that computes the feature map, i.e. given input space points it returns real valued features, one per input space point.
+        """
+        self.fmap_k = FeatMapKernel(feat_map)
+        self.c = c
+        self.d = d
+
+    def __call__(
+        self, X: np.ndarray, Y: np.ndarray = None, diag: bool = False
+    ) -> np.ndarray:
+        return (self.fmap_k(X, Y, diag) + self.c) ** self.d
 
 
 class DictKernel(Kernel):
