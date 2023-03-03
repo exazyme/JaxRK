@@ -1,6 +1,23 @@
 from ..core.typing import Array
+from ..rkhs.base import Vec
+from typing import TypeVar, Union
 import jax.numpy as np
-import numpy.random as random
+
+
+def outer(a: Union[Vec, Array], b: Union[Vec, Array] = None) -> Array:
+    """Compute the outer product of two vectors, which can be either RKHS vectors or JAX numpy arrays. If both vectors are vectors of RKHS elements, the outer product is computed using the RKHS inner product of all pairs of elements. Otherwise, the outer product is computed using the JAX numpy outer product.
+
+    Args:
+        a (Union[Vec, Array]): The first vector
+        b (Union[Vec, Array], optional): The second vector. Defaults to None, in which case the inner product is computed with X with itself.
+
+    Returns:
+        Array: The outer product
+    """
+    if isinstance(a, Vec):
+        return a.inner(b)
+    else:
+        return a @ b.T
 
 
 def block_matrix(UL: Array, UR: Array, LL: Array, LR: Array) -> Array:

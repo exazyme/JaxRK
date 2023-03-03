@@ -30,7 +30,7 @@ class SparseReduce(LinearizableReduce):
         """Initialize SparseReduce.
 
         Args:
-            idcs (List[np.array]): The indices of the rows to sum/average in the desired order. Each list element contains 2d arrays. The number of columns in the array is the number of summed/averaged elements. The number of rows is the number of times the sum/average is performed, i.e. the number of rows in the output resulting from the list element.
+            idcs (List[np.array]): The indices of the rows to sum/average in the desired order. Each list element contains 2d arrays. The number of columns in the array is the number of summed/averaged elements. The number of rows is the number of rows in the output resulting from this list element.
             average (bool): If True average rows, else sum rows.
             max_idx (int, optional): The maximum index in the input. Defaults to None, in which case the maximum index is inferred from the idcs.
         """
@@ -69,8 +69,13 @@ class SparseReduce(LinearizableReduce):
             DeviceArray([[2.5, 3.5, 4.5],
                          [4. , 5. , 6. ],
                          [4. , 5. , 6. ]], dtype=float32)
-            >>> r2 = SparseReduce([np.array([0, 0, 1, 1, 2])[:, np.newaxis]], False) # copy row 0 twice, then row 1 twice, then row 2
+            >>> r2 = SparseReduce([np.array([[0, 1], [0, 2]]), np.array([[0, 1, 2]])], True) # average rows 0 and 1, then 0 and 2, then all rows. Same as r1, just different input format, and probably more efficient.
             >>> r2.reduce_first_ax(inp)
+            DeviceArray([[2.5, 3.5, 4.5],
+                        [4. , 5. , 6. ],
+                        [4. , 5. , 6. ]], dtype=float32)
+            >>> r3 = SparseReduce([np.array([0, 0, 1, 1, 2])[:, np.newaxis]], False) # copy row 0 twice, then row 1 twice, then row 2
+            >>> r3.reduce_first_ax(inp)
             DeviceArray([[ 1,  2,  3],
                             [ 1,  2,  3],
                             [ 4,  5,  6],

@@ -5,7 +5,8 @@ import numpy as np
 from numpy.testing import assert_allclose
 
 
-from jaxrk.rkhs import FiniteVec, inner
+from jaxrk.rkhs import FiniteVec
+from jaxrk.utilities.linalg import outer
 from jaxrk.kern import GenGaussKernel
 from jaxrk.reduce import Prefactors, LinearReduce, BalancedRed
 
@@ -25,12 +26,12 @@ def test_FiniteVec(D, kernel, N):
         kernel, rng.randn(N + 1, D), np.ones(N + 1).astype(np.float32)
     )
     assert np.allclose(
-        inner(rv, rv),
+        outer(rv, rv),
         rv.k(rv.insp_pts, rv.insp_pts)
         * np.outer(rv.reduce[0].prefactors, rv.reduce[0].prefactors),
     ), "Simple vector computation not accurate"
     assert np.allclose(
-        inner(rv, rv2),
+        outer(rv, rv2),
         (
             rv.k(rv.insp_pts, rv2.insp_pts)
             * np.outer(rv.reduce[0].prefactors, rv2.reduce[0].linear_map)
@@ -43,12 +44,12 @@ def test_FiniteVec(D, kernel, N):
     rv = FiniteVec(kernel, X, [Prefactors(np.ones(len(X)) / 2), BalancedRed(2)])
     el = FiniteVec.construct_RKHS_Elem(kernel, X, np.ones(N))
     gram = el.k(el.insp_pts)
-    assert np.allclose(inner(el, el), np.sum(gram))
-    assert np.allclose(np.squeeze(inner(el, rv)), np.sum(gram, 1).reshape(-1, 2).mean(1))
+    assert np.allclose(outer(el, el), np.sum(gram))
+    assert np.allclose(np.squeeze(outer(el, rv)), np.sum(gram, 1).reshape(-1, 2).mean(1))
 
     rv = FiniteVec(kernel, X, [Prefactors(np.ones(len(X)) / 2), BalancedRed(2)])
     assert np.allclose(
-        inner(rv, rv),
+        outer(rv, rv),
         np.array(
             [
                 [np.mean(rv.k(X[:2, :])), np.mean(rv.k(X[:2, :], X[2:, :]))],
@@ -72,7 +73,7 @@ def test_FiniteVec(D, kernel, N):
         v.flatten(), kernel.var + np.array([0.5, 2.0 / 3]) - m.flatten() ** 2
     )
     # rv = FiniteVec(kernel, X, np.ones(len(X))/2, row_splits = [0,2,4])
-    # assert np.allclose(inner(rv, rv), np.array([[np.mean(rv.k(X[:2,:])), np.mean(rv.k(X[:2,:], X[2:,:]))],
+    # assert np.allclose(outer(rv, rv), np.array([[np.mean(rv.k(X[:2,:])), np.mean(rv.k(X[:2,:], X[2:,:]))],
     #                                           [np.mean(rv.k(X[:2,:], X[2:,:])), np.mean(rv.k(X[2:,:]))]])), "Ragged vector computation not accurate"
 
 

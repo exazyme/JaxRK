@@ -25,7 +25,11 @@ class FlaxGP(nn.Module):
             jax_gp.GP: The GP object.
         """
         return jax_gp.GP(
-            self.train_inp_vec, self.train_outp, self.regul, normalize_y=True
+            self.encode_inp,
+            self.train_inp,
+            self.train_outp,
+            self.regul,
+            normalize_y=True,
         )  # (self.train_inp_vec, self.train_outp_vec)
 
     def neg_llhood(self, cv_split: Array) -> float:

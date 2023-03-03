@@ -15,7 +15,7 @@ from scipy.stats import multivariate_normal
 from ..kern.base import Kernel
 from ..core.constraints import NonnegToLowerBd, Bijection, CholeskyBijection
 from ..utilities.views import tile_view
-from ..utilities.distances import outer
+from ..utilities.linalg import outer
 
 
 class FeatMapKernel(Kernel):

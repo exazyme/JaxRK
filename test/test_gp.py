@@ -8,7 +8,7 @@ import jaxopt
 import optax as ot
 
 
-from jaxrk.rkhs import FiniteVec, inner, StandardEncoder
+from jaxrk.rkhs import FiniteVec, StandardEncoder
 from jaxrk.kern import GenGaussKernel
 import jaxrk.models.gp as gp
 import scipy.stats as stats

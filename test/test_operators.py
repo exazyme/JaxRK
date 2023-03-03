@@ -11,7 +11,8 @@ import pytest
 from numpy.testing import assert_allclose
 from jax import random
 
-from jaxrk.rkhs import Cov_regul, CovOp, FiniteOp, FiniteVec, inner, CombVec, Cov_solve
+from jaxrk.rkhs import Cov_regul, CovOp, FiniteOp, FiniteVec, CombVec, Cov_solve
+from jaxrk.utilities.linalg import outer
 from jaxrk.models.conditional_operator import Cdo, Cmo
 from jaxrk.kern import SplitDimsKernel, PeriodicKernel, GenGaussKernel
 from jaxrk.utilities.array_manipulation import all_combinations
@@ -68,7 +69,7 @@ def test_FiniteOp():
     ref_fvec = FiniteVec(gk_x, x)
     ref_elem = FiniteVec.construct_RKHS_Elem(gk_x, x, np.ones(len(x)))
 
-    C1 = FiniteOp(ref_fvec, ref_fvec, np.linalg.inv(inner(ref_fvec)))
+    C1 = FiniteOp(ref_fvec, ref_fvec, np.linalg.inv(outer(ref_fvec)))
     assert np.allclose((C1 @ ref_elem).reduce[0].linear_map, 1.0)
 
     C2 = FiniteOp(ref_fvec, ref_fvec, C1.matr @ C1.matr)
@@ -120,7 +121,7 @@ def test_CovOp(plot=False):
     # CovOp_compl(out_fvec.k, out_fvec.inspace_points, regul=0.)
     C_ref = CovOp(ref_fvec)
 
-    inv_Gram_ref = np.linalg.inv(inner(ref_fvec))
+    inv_Gram_ref = np.linalg.inv(outer(ref_fvec))
 
     C_samps = CovOp(out_fvec)
     unif_obj = Cov_solve(C_samps, out_meanemb, regul=regul_C_ref).dens_proj()
@@ -128,8 +129,8 @@ def test_CovOp(plot=False):
     dens_obj = Cov_solve(C_ref, out_meanemb, regul=regul_C_ref).dens_proj()
 
     targp = np.exp(targ.logpdf(ref_fvec.insp_pts.squeeze())).squeeze()
-    estp = np.squeeze(inner(dens_obj, ref_fvec))
-    estp2 = np.squeeze(inner(dens_obj, ref_fvec))
+    estp = np.squeeze(outer(dens_obj, ref_fvec))
+    estp2 = np.squeeze(outer(dens_obj, ref_fvec))
     est_sup = unif_obj(x).squeeze()
     assert (
         np.abs(targp.squeeze() - estp).mean() < 0.8
@@ -150,7 +151,7 @@ def test_CovOp(plot=False):
         pl.plot(ref_fvec.insp_pts.squeeze(), targp, label="truth")
         pl.plot(x.squeeze(), est_sup.squeeze(), label="support")
 
-        # pl.plot(ref_fvec.inspace_points.squeeze(), np.squeeze(inner(unif_obj, ref_fvec)), label="unif")
+        # pl.plot(ref_fvec.inspace_points.squeeze(), np.squeeze(outer(unif_obj, ref_fvec)), label="unif")
         pl.legend(loc="best")
         pl.show()
     supp = unif_obj(x).squeeze()

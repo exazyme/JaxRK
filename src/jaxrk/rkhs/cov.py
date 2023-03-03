@@ -7,7 +7,8 @@ from scipy.optimize import minimize
 from .vector import FiniteVec
 from ..kern import Kernel
 
-from .base import RkhsObject, inner, InpVecT, OutVecT, CombT
+from .base import RkhsObject, InpVecT, OutVecT, CombT
+
 from .operator import FiniteOp
 
 
@@ -99,7 +100,7 @@ def Cov_inv(
         FiniteOp[InpVecT, InpVecT]: The inverse operator
     """
     assert regul is not None
-    gram = inner(cov.inp_feat)
+    gram = cov.inp_feat.inner()
     inv_gram = np.linalg.inv(gram + regul * np.eye(len(cov.inp_feat)))
     matr = inv_gram @ inv_gram
     if cov.matr is not None:

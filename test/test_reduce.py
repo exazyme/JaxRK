@@ -5,7 +5,6 @@ import pytest
 from numpy.testing import assert_allclose
 
 
-from jaxrk.rkhs import FiniteVec, inner
 from jaxrk.reduce import SparseReduce, LinearReduce
 
 rng = np.random.RandomState(1)

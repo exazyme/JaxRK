@@ -9,7 +9,7 @@ from scipy.optimize import minimize
 from .vector import FiniteVec
 from ..core.typing import AnyOrInitFn, Array
 
-from .base import LinOp, RkhsObject, Vec, inner, InpVecT, OutVecT, RhInpVectT, CombT
+from .base import LinOp, RkhsObject, Vec, InpVecT, OutVecT, RhInpVectT, CombT
 
 
 class FiniteOp(LinOp[InpVecT, OutVecT]):
@@ -61,7 +61,7 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
                 right_inp = FiniteVec(self.inp_feat.k, np.atleast_2d(right_inp))
             # right_inp is a vector
             # Op @ vec
-            right_gram = inner(self.inp_feat, right_inp)
+            right_gram = self.inp_feat.inner(right_inp)
 
             if self.matr is not None:
                 right_gram = self.matr @ right_gram
