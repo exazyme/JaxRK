@@ -50,7 +50,7 @@ def CovOp_from_Samples(
         inspace_points (np.ndarray): The input space points sampled according to the distribution defining the covariance operator.
     """
 
-    return CovOp(FiniteVec(kern, inspace_points, prefactors))
+    return CovOp(FiniteVec(kern, inspace_points))
 
 
 def Cov_regul(

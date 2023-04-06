@@ -2,12 +2,8 @@ from copy import copy
 
 
 import jax.numpy as np
-from jax.interpreters.xla import DeviceArray
-from scipy.optimize import minimize
 
-from ..core.typing import AnyOrInitFn, Array
-
-from ..rkhs import InpVecT, OutVecT, inner
+from ..rkhs import InpVecT, OutVecT
 from ..rkhs.cov import *
 from ..rkhs.operator import FiniteOp
 
