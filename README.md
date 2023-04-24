@@ -2,6 +2,22 @@
 
 JaxRK is a library for working with (vectors of) RKHS elements and RKHS operators using [JAX](https://github.com/google/jax) for automatic differentiation. This library includes implementations of [kernel transfer operators](https://arxiv.org/abs/1712.01572) and [conditional density operators](https://arxiv.org/abs/1905.11255).
 
+## High level overview of software design
+
+### Elementary Kernels
+Elementary kernels can be applied directly to input space points, such as $k ∈ R^d x R^D$. They adhere to the API defined in `jaxrk.kern.base.Kernel`.
+
+### RKHS Elements
+RKHS elements (φ ∈ H) are linear combinations of elementary kernels with one fixed argument. For example, the kernel mean embedding $(1/n Σ_i k(x_i, .))$ is an RKHS element where $H$ is induced by the kernel $k$. A more complex RKHS element would be $Σ_i,j a_ij k_1(x_i, .) k_2(x'_j, .)$, involving two different elementary kernels $k_1$ and $k_2$ with two input spaces containing $x_i$ and $x'_j$. Consider $k_1$ as a kernel on nodes and $k_2$ as a kernel on edges of a graph. The RKHS $H$ is then induced by the kernel $k((x,x'), (y,y')) = k_1(x, y) k_2(x', y')$.
+
+### Vectors of RKHS Elements
+Vectors of RKHS elements are simply represented as $[φ_1, …, φ_N] ∈ H^N$ and follow the API defined in `jaxrk.rkhs.base.Vec`. The most commonly used concrete implementation is `jaxrk.rhks.vec.FiniteVec`.
+
+The simplest RKHS vector is one where each $φ_i$ corresponds to exactly one input space point, i.e., $φ_i = k(x_i, .)$. It can be constructed using `jaxrk.rhks.vec.FiniteVec(kernel_object, input_space_points)`. If the number of rows in `input_space_points` equals $N$, this means the constructed RKHS vector is in $H^N$.
+
+### Reductions of RKHS Vectors
+To construct an RKHS vector containing more complex RKHS elements, reductions can be used, which are implemented in `jaxrk.reduce.base.Reduce`. These take $[φ_1, …, φ_N]$ and often simply map them through a real matrix $A ∈ R^(MxN)$. Concretely, $[φ_1, …, φ_N]$ would be mapped to $[Σ_i a_{1,i} φ_i, Σ_i a_{2,i} φ_i, …, Σ_i a_{N,i} φ_i]$.
+
 ## Installation
 First you have to make sure to have jax and jaxlib installed. Please follow the [JAX installation instructions](https://github.com/google/jax) depending on whether you want a CPU or GPU/TPU installation. After that you only need
 ```
