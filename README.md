@@ -5,7 +5,7 @@ JaxRK is a library for working with (vectors of) RKHS elements and RKHS operator
 ## High level overview of software design
 
 ### Elementary Kernels
-Elementary kernels can be applied directly to input space points, such as $k ∈ R^d \times R^d$. They adhere to the API defined in `jaxrk.kern.base.Kernel`.
+Elementary kernels can be applied directly to input space points $ R^d$, such that $k: R^d \times R^d \mapsto R$. They adhere to the API defined in `jaxrk.kern.base.Kernel`.
 
 ### RKHS Elements
 RKHS elements $φ ∈ H$ are linear combinations of elementary kernels with one fixed argument. For example, $Σ_i a_i k(x_i, .)$ is an RKHS element where $H$ is induced by the kernel $k$. If $a_i = 1/N$ for all $i$ and $\\{x_i\\}_{i=1}^N$ are samples from a distribution, this is the kernel mean embedding.
