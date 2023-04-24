@@ -10,7 +10,7 @@ Elementary kernels can be applied directly to input space points $R^d$, such tha
 ### RKHS Elements
 RKHS elements $φ ∈ H$ are linear combinations of elementary kernels with one fixed argument. For example, $Σ_i a_i k(x_i, .)$ is an RKHS element where $H$ is induced by the kernel $k$. If $a_i = 1/N$ for all $i$ and $\\{x_i\\}_{i=1}^N$ are samples from a distribution, this is the kernel mean embedding.
 
-A more complex RKHS element would be $Σ_i,j a_ij k_1(x_i, .) k_2(x'_j, .)$, involving two different elementary kernels $k_1$ and $k_2$ with two input spaces containing $x_i$ and $x'_j$. For example $k_1$ could be a kernel on nodes and $k_2$ a kernel on edges of a graph. The RKHS $H$ is then induced by the kernel $k((x,x'), (y,y')) = k_1(x, y) k_2(x', y')$.
+A more complex RKHS element would be $Σ_{i,j} a_{i,j} k_1(x_i, .) k_2(x'_j, .)$, involving two different elementary kernels $k_1$ and $k_2$ with two input spaces containing $x_i$ and $x'_j$. For example $k_1$ could be a kernel on nodes and $k_2$ a kernel on edges of a graph. The RKHS $H$ is then induced by the kernel $k((x,x'), (y,y')) = k_1(x, y) k_2(x', y')$.
 
 ### Vectors of RKHS Elements
 Vectors of RKHS elements are simply represented as $[φ_1, …, φ_N] ∈ H^N$ and follow the API defined in `jaxrk.rkhs.base.Vec`. The most commonly used concrete implementation is `jaxrk.rhks.vec.FiniteVec`.
@@ -21,7 +21,7 @@ The simplest RKHS vector is one where each $φ_i$ corresponds to exactly one inp
 
 Upstream models like Gaussian Processes, Conditional Mean and conditional density operators, kernel based classifiers etc. all use RKHS vectors $\Phi = [φ_1, …, φ_N]$ as training data and RKHS vectors $\Phi' = [φ'_1, …, φ'_M]$ as test data.
 
-The advantage is that all upstream models can automatically handle very complex data using only elementary kernels and a smart linear combination. For example, one can use all upstream models directly with distributions as input by simply representing each distribution by its mean embedding. Concretely, the training data would look like $\Phi = [\sum_i k(x^1_i, .), …, \sum_i k(x^N_i, .)]$, where $x^j_i$ is the $i$-th sample from the $j$-th distribution.
+The advantage is that all upstream models can automatically handle very complex data using only elementary kernels and a smart linear combination. For example, one can use all upstream models directly with distributions as input by simply representing each distribution by its mean embedding. Concretely, the training data would look like $\Phi = [\sum_i k(x^{(1)}_i, \cdot), …, \sum_i k(x^{(N)}_i, \cdot)]$, where $x^{(j)}_i$ is the $i$-th sample from the $j$-th distribution.
 
 #### Reductions of RKHS Vectors
 To construct an RKHS vector containing more complex RKHS elements, reductions can be used, which are implemented in `jaxrk.reduce.base.Reduce`. These take $[φ_1, …, φ_N]$ and often simply map them through a real matrix $A ∈ R^{M \times N}$. Concretely, $[φ_1, …, φ_N]$ would be mapped to $[Σ_i a_{1,i} \cdot φ_i, Σ_i a_{2,i} \cdot φ_i, …, Σ_i a_{M,i}\cdot φ_i]$.
