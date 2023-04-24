@@ -8,7 +8,7 @@ JaxRK is a library for working with (vectors of) RKHS elements and RKHS operator
 Elementary kernels can be applied directly to input space points, such as $k ∈ R^d x R^D$. They adhere to the API defined in `jaxrk.kern.base.Kernel`.
 
 ### RKHS Elements
-RKHS elements (φ ∈ H) are linear combinations of elementary kernels with one fixed argument. For example, the kernel mean embedding $(1/n Σ_i k(x_i, .))$ is an RKHS element where $H$ is induced by the kernel $k$. A more complex RKHS element would be $Σ_i,j a_ij k_1(x_i, .) k_2(x'_j, .)$, involving two different elementary kernels $k_1$ and $k_2$ with two input spaces containing $x_i$ and $x'_j$. Consider $k_1$ as a kernel on nodes and $k_2$ as a kernel on edges of a graph. The RKHS $H$ is then induced by the kernel $k((x,x'), (y,y')) = k_1(x, y) k_2(x', y')$.
+RKHS elements (φ ∈ H) are linear combinations of elementary kernels with one fixed argument. For example, the kernel mean embedding $(1/n Σ_i k(x_i, .))$ is an RKHS element where $H$ is induced by the kernel $k$. A more complex RKHS element would be $Σ_i,j a_ij k_1(x_i, .) k_2(x'_j, .)$, involving two different elementary kernels $k_1$ and $k_2$ with two input spaces containing $x_i$ and $x'_j$. For example $k_1$ could be a kernel on nodes and $k_2$ a kernel on edges of a graph. The RKHS $H$ is then induced by the kernel $k((x,x'), (y,y')) = k_1(x, y) k_2(x', y')$.
 
 ### Vectors of RKHS Elements
 Vectors of RKHS elements are simply represented as $[φ_1, …, φ_N] ∈ H^N$ and follow the API defined in `jaxrk.rkhs.base.Vec`. The most commonly used concrete implementation is `jaxrk.rhks.vec.FiniteVec`.
