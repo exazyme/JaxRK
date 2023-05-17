@@ -164,7 +164,20 @@ class SparseReduce(LinearizableReduce):
             mean (bool, optional): Whether to average the blocks. Defaults to True.
         """
 
-        def collect_block_start_stop(l: list[np.ndarray]):
+        def collect_block_start_stop(l: list[np.ndarray]) -> np.ndarray:
+            """Collect the start and stop indices of the arrays in the list.
+            This can be used to reconstruct the original list after stacking its element arrays.
+
+            Args:
+                l (list[np.ndarray]): List of arrays, where each array can have different length.
+
+            Returns:
+                np.ndarray: Array of shape (len(l), 2) where each row contains the start and stop index of the corresponding array in the list.
+            """
+            # variable to collect indices of start and stop of
+            # each block, e.g. if the elements in l have length 3, 4, 2
+            # then this will be [[0, 3], [3, 7], [7, 9]]
+            # i.e. the stop index is excluded
             rval = []
             total_len = 0
             for arr in l:
@@ -173,7 +186,15 @@ class SparseReduce(LinearizableReduce):
                 total_len += arr_len
             return np.array(rval)
 
-        def reduce_blocks(block_start_stop: np.ndarray):
+        def reduce_blocks(block_start_stop: np.ndarray) -> list[np.ndarray]:
+            """Get the indices of the elements between block start and stop indices.
+
+            Args:
+                block_start_stop (np.ndarray): Array of shape (D, 2) where each row contains the start and stop index corresponding to the size of an array.
+
+            Returns:
+                list[np.ndarray]: List of arrays of indices of the elements between block start and stop indices.
+            """
             rval = []
             total_len = block_start_stop[-1, 1]
             for start, stop in block_start_stop:
