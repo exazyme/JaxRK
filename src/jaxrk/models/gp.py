@@ -506,12 +506,13 @@ class GP(Generic[InputT]):
         """Compute predictive mean and (co)variance of the GP
 
         Args:
-            xtest (InputT): Test points given as a vector of RKHS points (i.e. a FiniteVec object)
+            xtest (InputT): Input data representing m input space points
             diag (bool, optional): Whether to compute only the diagonal of the predictive covariance matrix. Defaults to True.
 
         Returns:
             tuple[Array, Array]: Predictive mean and variance or covariance matrix
         """
+        xtest = self.enc(xtest)
         pred_m, pred_cov = gp_predictive(
             self.x_enc.inner(xtest),
             xtest.inner(),
