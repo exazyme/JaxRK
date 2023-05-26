@@ -6,7 +6,7 @@ Created on Thu Jan 10 10:01:56 2019
 
 import collections.abc
 import jax
-from typing import Callable, List, TypeVar, Tuple
+from typing import Callable, List, TypeVar, Tuple, Union
 
 from functools import partial
 import jax.numpy as np
@@ -15,7 +15,7 @@ import jax.scipy.stats as stats
 from jax.numpy import exp, log, sqrt
 from ..core.typing import Array
 from ..utilities.cv import vmatmul_fixed_inp
-from .base import LinearizableReduce, Reduce
+from .base import LinearReduce, LinearizableReduce, Reduce
 
 
 # ListOfArray_or_Array_T = TypeVar("CombT", List[Array], Array)
@@ -254,3 +254,44 @@ class SparseReduce(LinearizableReduce):
 
         # assert False
         return un_sorted, cts_sorted, SparseReduce(el, mean)
+
+
+def Kmer(
+    k: int,
+    seq_length: int,
+    average: bool,
+    output_format: str = "linear",
+) -> Union[np.ndarray, SparseReduce, LinearReduce]:
+    """Generate a k-mer matrix for a sequence of length seq_length.
+    Another name for k-mer is n-gram.
+    Either return the binary matrix or a SparseReduce object.
+
+    Args:
+        k (ScalarInt): The k in k-mer.
+        seq_length (ScalarInt): The length of the sequence. You can also specify a max sequence length and The output matrix will have shape (k, seq_length).
+        average (ScalarBool): Whether to average the k elements for each k-mer.
+        output_format (str, optional): Either "linear" or "sparse" to get a Reduce object. Using "matrix" will return the binary matrix. Using "index" will return the indices of the k-mers. Defaults to "linear".
+    Returns:
+        Union[np.ndarray, SparseReduce, LinearReduce]: The k-mer binary/index matrix or a Reduce object.
+    """
+    if seq_length < k or k <= 1 or seq_length <= 1:
+        raise ValueError(
+            f"seq_length ({seq_length}) must be greater than k ({k}) and both must be greater than 1."
+        )
+
+    if output_format == "linear" or output_format == "binary":
+        A = np.zeros((seq_length - k + 1, seq_length), dtype=np.float32)
+        for i in range(seq_length - k + 1):
+            A = A.at[i, i : i + k].set(1.0)
+        if average:
+            A = A / k
+        if output_format == "binary":
+            return A
+        else:
+            return LinearReduce(A)
+    elif output_format == "sparse" or output_format == "index":
+        index = np.arange(seq_length - k + 1)[:, None] + np.arange(k)[None, :]
+        if output_format == "index":
+            return index
+        else:
+            return SparseReduce([index], average)
