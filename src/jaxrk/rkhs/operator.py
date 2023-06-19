@@ -3,7 +3,7 @@ from ..reduce import LinearReduce, Sum
 from typing import Generic, TypeVar, Callable, Union
 
 import jax.numpy as np
-from jax.interpreters.xla import DeviceArray
+from jax import Array
 from scipy.optimize import minimize
 
 from .vector import FiniteVec
@@ -57,7 +57,7 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
                 matr = self.matr @ matr
             return FiniteOp(right_inp.inp_feat, self.outp_feat, matr)
         else:
-            if isinstance(right_inp, DeviceArray):
+            if isinstance(right_inp, Array):
                 right_inp = FiniteVec(self.inp_feat.k, np.atleast_2d(right_inp))
             # right_inp is a vector
             # Op @ vec
@@ -91,11 +91,11 @@ class FiniteOp(LinOp[InpVecT, OutVecT]):
         """Transpose operator."""
         return FiniteOp(self.outp_feat, self.inp_feat, self.matr.T, self._normalize)
 
-    def __call__(self, inp: DeviceArray) -> RkhsObject:
+    def __call__(self, inp: Array) -> RkhsObject:
         """Apply operator to input space points mapped to RKHS space.
 
         Args:
-            inp (DeviceArray): Input space points.
+            inp (Array): Input space points.
 
         Returns:
             RkhsObject: Output vector or operator.

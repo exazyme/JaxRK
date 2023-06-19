@@ -1,7 +1,7 @@
 from copy import copy
 
+from jax import Array
 import jax.numpy as np
-from jax.interpreters.xla import DeviceArray
 from scipy.optimize import minimize
 
 from .vector import FiniteVec
@@ -133,7 +133,7 @@ def Cov_solve(
     if isinstance(lhs, FiniteOp):
         reg_inp = lhs.outp_feat
     else:
-        if isinstance(lhs, DeviceArray):
+        if isinstance(lhs, Array):
             lhs = FiniteVec(cov.inp_feat.k, np.atleast_2d(lhs))
         reg_inp = lhs
     if regul is None:

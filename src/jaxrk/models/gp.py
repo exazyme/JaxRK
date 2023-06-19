@@ -72,7 +72,7 @@ def gp_init(
     # print("noise is ", noise)
     if noise is None:
         noise = Cov_regul(1, len(x_inner_x))
-    y, noise, normalize_y = (y, noise, normalize_y)
+
     if y.ndim == 1:
         y = y[:, np.newaxis]
 
